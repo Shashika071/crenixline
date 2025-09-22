@@ -39,8 +39,8 @@ services:
       # Mount frontend build output
       - ./frontend/dist:/usr/share/nginx/html:ro
       # Mount nginx config file
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Mount Let's Encrypt certificates
+      - /var/www/crexline/crenixline/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount Let's Encrypt certs
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - frontend
