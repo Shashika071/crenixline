@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://crexline.me/api';
 
 // Create axios instance with default config
 const api = axios.create({
