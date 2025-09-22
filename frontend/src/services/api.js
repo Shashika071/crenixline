@@ -43,12 +43,31 @@ export const authAPI = {
 
 // Employee API
 export const employeeAPI = {
+  // Basic employee operations
   getAll: (params) => api.get('/employees', { params }),
   getById: (id) => api.get(`/employees/${id}`),
   create: (data) => api.post('/employees', data),
   update: (id, data) => api.put(`/employees/${id}`, data),
   delete: (id) => api.delete(`/employees/${id}`),
   getStats: () => api.get('/employees/stats'),
+  
+  // Attendance operations
+  markAttendance: (data) => api.post('/employees/attendance/mark', data),
+  getAttendance: (params) => api.get('/employees/attendance/list', { params }),
+  exportAttendance: (params) => api.get('/employees/attendance/export', { 
+    params,
+    responseType: 'blob' 
+  }),
+  
+  // Salary operations
+  calculateSalary: (params) => api.get('/employees/salary/calculate', { params }),
+  exportSalaryReport: (params) => api.get('/employees/salary/export', { 
+    params,
+    responseType: 'blob' 
+  }),
+  
+  // Working schedule
+  updateSchedule: (id, data) => api.patch(`/employees/${id}/schedule`, data)
 };
 
 // Order API

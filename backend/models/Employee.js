@@ -1,5 +1,29 @@
 import mongoose from "mongoose";
 
+const attendanceSchema = new mongoose.Schema({
+  date: {
+    type: Date,
+    required: true
+  },
+  checkIn: {
+    type: Date,
+    required: true
+  },
+  checkOut: {
+    type: Date
+  },
+  breakStart: Date,
+  breakEnd: Date,
+  totalHours: Number,
+  overtimeHours: Number,
+  status: {
+    type: String,
+    enum: ['Present', 'Absent', 'Half Day', 'Leave'],
+    default: 'Present'
+  },
+  notes: String
+});
+
 const employeeSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -54,13 +78,36 @@ const employeeSchema = new mongoose.Schema({
     name: String,
     relationship: String,
     phone: String
-  }
+  },
+  workingSchedule: {
+    monday: { start: String, end: String, working: Boolean },
+    tuesday: { start: String, end: String, working: Boolean },
+    wednesday: { start: String, end: String, working: Boolean },
+    thursday: { start: String, end: String, working: Boolean },
+    friday: { start: String, end: String, working: Boolean },
+    saturday: { start: String, end: String, working: Boolean },
+    sunday: { start: String, end: String, working: Boolean }
+  },
+  attendance: [attendanceSchema]
 }, {
   timestamps: true
+});
+
+// Pre-save middleware to calculate hourly rate
+employeeSchema.pre('save', function(next) {
+  if (this.isModified('salary')) {
+    // Calculate hourly rate based on monthly salary
+    const workingDaysPerMonth = 26; // Monday to Saturday
+    const hoursPerDay = 8;
+    this.hourlyRate = this.salary / (workingDaysPerMonth * hoursPerDay);
+    this.overtimeRate = this.hourlyRate * 1.5;
+  }
+  next();
 });
 
 employeeSchema.index({ nic: 1 });
 employeeSchema.index({ role: 1 });
 employeeSchema.index({ status: 1 });
+employeeSchema.index({ 'attendance.date': 1 });
 
 export default mongoose.model("Employee", employeeSchema);
