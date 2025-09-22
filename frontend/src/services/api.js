@@ -66,10 +66,18 @@ export const employeeAPI = {
     responseType: 'blob' 
   }),
   
-  // Working schedule
-  updateSchedule: (id, data) => api.patch(`/employees/${id}/schedule`, data)
+  // Leave operations
+  getLeaveBalances: (id) => api.get(`/employees/${id}/leave-balances`),
+  applyMedicalLeave: (data) => api.post('/employees/medical-leave', data),
+  updateMedicalLeaveStatus: (data) => api.patch('/employees/medical-leave/update', data),
+  
+  // Factory closure operations
+  createFactoryClosure: (data) => api.post('/employees/factory-closures', data),
+  getFactoryClosures: (params) => api.get('/employees/factory-closures', { params }),
+  
+  // Probation employees
+  getProbationEmployees: () => api.get('/employees/probation')
 };
-
 // Order API
 export const orderAPI = {
   getAll: (params) => api.get('/orders', { params }),

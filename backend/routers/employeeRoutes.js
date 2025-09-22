@@ -1,6 +1,10 @@
+// routes/employeeRoutes.js
+
 import {
+  applyMedicalLeave,
   calculateSalary,
   createEmployee,
+  createFactoryClosure,
   deleteEmployee,
   exportAttendance,
   exportSalaryReport,
@@ -8,17 +12,23 @@ import {
   getEmployeeById,
   getEmployeeStats,
   getEmployees,
+  getFactoryClosures,
+  getLeaveBalances,
+  getProbationEmployees,
   markAttendance,
-  updateEmployee
+  updateEmployee,
+  updateMedicalLeaveStatus
 } from '../controllers/employeeController.js';
 
 import express from 'express';
 
 const router = express.Router();
 
+// Employee CRUD routes
 router.post('/', createEmployee);
 router.get('/', getEmployees);
 router.get('/stats', getEmployeeStats);
+router.get('/probation', getProbationEmployees);
 router.get('/:id', getEmployeeById);
 router.put('/:id', updateEmployee);
 router.delete('/:id', deleteEmployee);
@@ -31,5 +41,14 @@ router.get('/attendance/export', exportAttendance);
 // Salary routes
 router.get('/salary/calculate', calculateSalary);
 router.get('/salary/export', exportSalaryReport);
+
+// Leave management routes
+router.get('/:id/leave-balances', getLeaveBalances);
+router.post('/medical-leave/apply', applyMedicalLeave);
+router.patch('/medical-leave/update', updateMedicalLeaveStatus);
+
+// Factory closure routes
+router.post('/factory-closures', createFactoryClosure);
+router.get('/factory-closures', getFactoryClosures);
 
 export default router;
