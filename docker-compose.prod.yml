@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: mongo-rs0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    env_file:
+      - ./backend/.env
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mongo_data:
