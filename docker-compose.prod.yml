@@ -21,7 +21,7 @@ services:
     networks:
       - app-network
     expose:
-      - "5000"  # Expose port to other containers
+      - "5000"
 
   frontend:
     build: ./frontend
@@ -33,7 +33,7 @@ services:
       - "80"
 
   nginx:
-    image: nginx:latest
+    image: nginx:alpine  # Use alpine for better permission handling
     container_name: nginx
     restart: unless-stopped
     ports:
@@ -48,6 +48,7 @@ services:
       - backend
     networks:
       - app-network
+    user: "nginx"  # Explicitly set user
 
 volumes:
   mongo_data:
