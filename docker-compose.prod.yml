@@ -15,7 +15,6 @@ services:
       - app-network
     expose:
       - "5000"
-    # Add DNS configuration for better Atlas connectivity
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -49,7 +48,6 @@ services:
       - 8.8.8.8
       - 1.1.1.1
 
-# Remove mongo_data volume since we're using Atlas
 networks:
   app-network:
     driver: bridge
