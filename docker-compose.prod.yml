@@ -20,6 +20,8 @@ services:
       - mongo
     networks:
       - app-network
+    expose:
+      - "5000"  # Expose port to other containers
 
   frontend:
     build: ./frontend
@@ -27,6 +29,8 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+    expose:
+      - "80"
 
   nginx:
     image: nginx:latest
@@ -38,7 +42,7 @@ services:
     volumes:
       - ./frontend/dist:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro   # SSL certificates
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - frontend
       - backend
