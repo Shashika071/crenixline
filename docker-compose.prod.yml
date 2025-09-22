@@ -1,13 +1,6 @@
-services:
-  mongo:
-    image: mongo:6.0
-    container_name: mongo-rs0
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - app-network
+version: "3.8"
 
+services:
   backend:
     build:
       context: ./backend
@@ -16,12 +9,16 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env
-    depends_on:
-      - mongo
+    environment:
+      - NODE_ENV=production
     networks:
       - app-network
     expose:
       - "5000"
+    # Add DNS configuration for better Atlas connectivity
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   frontend:
     build:
@@ -48,10 +45,11 @@ services:
       - backend
     networks:
       - app-network
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
-volumes:
-  mongo_data:
-
+# Remove mongo_data volume since we're using Atlas
 networks:
   app-network:
     driver: bridge
