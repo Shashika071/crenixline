@@ -1,19 +1,40 @@
 version: "3.8"
 
 services:
-  mongo:
-    image: mongo:6.0
-    container_name: mongo-rs0
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 10s
-      retries: 5
+  backend:
+    build: ./backend
+    container_name: crex_backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    expose:
+      - "5000"
+    networks:
+      - crexnet
 
-volumes:
-  mongo_data:
+  frontend:
+    build: ./frontend
+    container_name: crex_frontend
+    restart: always
+    networks:
+      - crexnet
+
+  nginx:
+    image: nginx:alpine
+    container_name: crex_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - crexnet
+
+networks:
+  crexnet:
+    driver: bridge

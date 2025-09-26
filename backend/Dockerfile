@@ -1,8 +1,19 @@
-FROM node:20
+# Use Node.js LTS
+FROM node:20-alpine
+
 WORKDIR /app
+
+# Copy package files first
 COPY package*.json ./
-RUN npm install
+
+# Install dependencies
+RUN npm install --production
+
+# Copy backend source
 COPY . .
-ENV HOST=0.0.0.0
+
+# Expose backend port
 EXPOSE 5000
+
+# Start the app
 CMD ["npm", "start"]
