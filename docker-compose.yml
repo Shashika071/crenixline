@@ -7,7 +7,7 @@ services:
     restart: always
     env_file:
       - ./backend/.env
-    expose:
+    ports:
       - "5000"
     networks:
       - crexnet
