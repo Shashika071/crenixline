@@ -1,8 +1,9 @@
+import * as XLSX from 'xlsx';
+
 import {
   Building,
   Download,
   Edit,
-  Filter,
   Mail,
   MapPin,
   Phone,
@@ -33,10 +34,12 @@ const SupplierManagement = () => {
 
   const fetchSuppliers = async () => {
     try {
+      setLoading(true);
       const response = await supplierAPI.getAll();
       setSuppliers(response.data.data);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
+      alert('Error fetching suppliers. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -45,11 +48,12 @@ const SupplierManagement = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this supplier?')) {
       try {
-        // Add delete API call when available
-        console.log('Delete supplier:', id);
-        // await supplierAPI.delete(id);
+        await supplierAPI.delete(id);
+        setSuppliers(suppliers.filter(supplier => supplier._id !== id));
+        alert('Supplier deleted successfully!');
       } catch (error) {
         console.error('Error deleting supplier:', error);
+        alert('Error deleting supplier. Please try again.');
       }
     }
   };
@@ -57,24 +61,56 @@ const SupplierManagement = () => {
   const handleSubmit = async (formData) => {
     try {
       if (editingSupplier) {
-        await supplierAPI.update(editingSupplier._id, formData);
+        const response = await supplierAPI.update(editingSupplier._id, formData);
         setSuppliers(suppliers.map(sup => 
-          sup._id === editingSupplier._id ? { ...sup, ...formData } : sup
+          sup._id === editingSupplier._id ? response.data.data : sup
         ));
+        alert('Supplier updated successfully!');
       } else {
         const response = await supplierAPI.create(formData);
         setSuppliers([...suppliers, response.data.data]);
+        alert('Supplier added successfully!');
       }
       setShowAddModal(false);
       setEditingSupplier(null);
     } catch (error) {
       console.error('Error saving supplier:', error);
+      alert('Error saving supplier. Please try again.');
     }
+  };
+
+  const exportToExcel = () => {
+    if (filteredSuppliers.length === 0) {
+      alert('No data to export!');
+      return;
+    }
+
+    const exportData = filteredSuppliers.map(supplier => ({
+      'Company Name': supplier.name,
+      'Type': supplier.type,
+      'Contact Number': supplier.contactNo,
+      'Email': supplier.email || 'N/A',
+      'Address': supplier.address,
+      'Contact Person': supplier.contactPerson?.name || 'N/A',
+      'Contact Person Phone': supplier.contactPerson?.phone || 'N/A',
+      'Contact Person Email': supplier.contactPerson?.email || 'N/A',
+      'Status': supplier.status,
+      'Rating': supplier.rating,
+      'Balance': supplier.balance || 0
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Suppliers');
+    
+    const fileName = `suppliers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
   };
 
   const filteredSuppliers = suppliers.filter(supplier => {
     const matchesSearch = supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         supplier.contactPerson?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+                         supplier.contactPerson?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         supplier.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || supplier.type === filterType;
     const matchesStatus = filterStatus === 'all' || supplier.status === filterStatus;
     return matchesSearch && matchesType && matchesStatus;
@@ -143,36 +179,69 @@ const SupplierManagement = () => {
           <div className="flex items-center space-x-3">
             <button 
               onClick={fetchSuppliers}
-              className="flex items-center space-x-2 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+              className="flex items-center space-x-2 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
             >
               <RefreshCw size={16} />
               <span>Refresh</span>
             </button>
-            <button className="flex items-center space-x-2 px-3 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">
+            <button 
+              onClick={exportToExcel}
+              disabled={filteredSuppliers.length === 0}
+              className="flex items-center space-x-2 px-3 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+            >
               <Download size={16} />
-              <span>Export</span>
+              <span>Export Excel</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Suppliers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSuppliers.map((supplier) => (
-          <SupplierCard 
-            key={supplier._id} 
-            supplier={supplier} 
-            onEdit={setEditingSupplier}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Loading suppliers...</p>
+        </div>
+      )}
 
-      {filteredSuppliers.length === 0 && (
+      {/* Suppliers Grid */}
+      {!loading && filteredSuppliers.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredSuppliers.map((supplier) => (
+            <SupplierCard 
+              key={supplier._id} 
+              supplier={supplier} 
+              onEdit={() => {
+                setEditingSupplier(supplier);
+                setShowAddModal(true);
+              }}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && filteredSuppliers.length === 0 && suppliers.length > 0 && (
         <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200">
           <Truck className="w-12 h-12 text-slate-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-slate-900 mb-2">No suppliers found</h3>
           <p className="text-slate-500">Try adjusting your search or filter criteria.</p>
+        </div>
+      )}
+
+      {/* No Suppliers State */}
+      {!loading && suppliers.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200">
+          <Truck className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-900 mb-2">No suppliers yet</h3>
+          <p className="text-slate-500 mb-4">Get started by adding your first supplier.</p>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:shadow-lg transition-all duration-200"
+          >
+            Add First Supplier
+          </button>
         </div>
       )}
 
@@ -197,10 +266,14 @@ const SupplierStats = ({ suppliers }) => {
     active: suppliers.filter(s => s.status === 'Active').length,
     suppliers: suppliers.filter(s => s.type === 'Supplier').length,
     agents: suppliers.filter(s => s.type === 'Agent').length,
+    clients: suppliers.filter(s => s.type === 'Client').length,
+    both: suppliers.filter(s => s.type === 'Both').length,
   };
 
+  const activePercentage = stats.total > 0 ? (stats.active / stats.total * 100).toFixed(1) : 0;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatCard
         title="Total Suppliers"
         value={stats.total}
@@ -210,7 +283,7 @@ const SupplierStats = ({ suppliers }) => {
       <StatCard
         title="Active"
         value={stats.active}
-        percentage={(stats.active / stats.total * 100).toFixed(1)}
+        percentage={activePercentage}
         icon={<Star className="w-6 h-6" />}
         color="from-green-500 to-green-600"
       />
@@ -236,19 +309,26 @@ const SupplierCard = ({ supplier, onEdit, onDelete }) => {
       case 'Supplier': return 'bg-blue-100 text-blue-800';
       case 'Agent': return 'bg-green-100 text-green-800';
       case 'Client': return 'bg-purple-100 text-purple-800';
+      case 'Both': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-slate-100 text-slate-800';
     }
   };
 
+  const getStatusColor = (status) => {
+    return status === 'Active' 
+      ? 'bg-green-100 text-green-800' 
+      : 'bg-red-100 text-red-800';
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow duration-200">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
             <Building className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-900">{supplier.name}</h3>
+            <h3 className="font-semibold text-slate-900 truncate max-w-[150px]">{supplier.name}</h3>
             <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(supplier.type)}`}>
               {supplier.type}
             </span>
@@ -257,13 +337,15 @@ const SupplierCard = ({ supplier, onEdit, onDelete }) => {
         <div className="flex space-x-1">
           <button 
             onClick={() => onEdit(supplier)}
-            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg transition-colors"
+            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors duration-200"
+            title="Edit Supplier"
           >
             <Edit size={16} />
           </button>
           <button 
             onClick={() => onDelete(supplier._id)}
-            className="text-red-600 hover:text-red-800 p-2 rounded-lg transition-colors"
+            className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors duration-200"
+            title="Delete Supplier"
           >
             <Trash2 size={16} />
           </button>
@@ -273,35 +355,31 @@ const SupplierCard = ({ supplier, onEdit, onDelete }) => {
       <div className="space-y-3">
         <div className="flex items-center space-x-2 text-sm text-slate-600">
           <Phone size={14} />
-          <span>{supplier.contactNo}</span>
+          <span className="truncate">{supplier.contactNo}</span>
         </div>
         
         {supplier.email && (
           <div className="flex items-center space-x-2 text-sm text-slate-600">
             <Mail size={14} />
-            <span>{supplier.email}</span>
+            <span className="truncate">{supplier.email}</span>
           </div>
         )}
         
-        {supplier.contactPerson && (
+        {supplier.contactPerson?.name && (
           <div className="flex items-center space-x-2 text-sm text-slate-600">
             <User size={14} />
-            <span>Contact: {supplier.contactPerson.name}</span>
+            <span className="truncate">Contact: {supplier.contactPerson.name}</span>
           </div>
         )}
         
-        <div className="flex items-center space-x-2 text-sm text-slate-600">
-          <MapPin size={14} />
-          <span className="truncate">{supplier.address}</span>
+        <div className="flex items-start space-x-2 text-sm text-slate-600">
+          <MapPin size={14} className="mt-0.5 flex-shrink-0" />
+          <span className="line-clamp-2">{supplier.address}</span>
         </div>
       </div>
       
       <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-200">
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-          supplier.status === 'Active' 
-            ? 'bg-green-100 text-green-800' 
-            : 'bg-red-100 text-red-800'
-        }`}>
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(supplier.status)}`}>
           {supplier.status}
         </span>
         <div className="flex items-center space-x-1">
@@ -318,7 +396,6 @@ const SupplierCard = ({ supplier, onEdit, onDelete }) => {
   );
 };
 
-// Supplier Modal Component
 const SupplierModal = ({ supplier, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
     name: supplier?.name || '',
@@ -327,13 +404,28 @@ const SupplierModal = ({ supplier, onSubmit, onClose }) => {
     email: supplier?.email || '',
     type: supplier?.type || 'Supplier',
     status: supplier?.status || 'Active',
-    contactPerson: supplier?.contactPerson || { name: '', phone: '', email: '' },
-    rating: supplier?.rating || 3
+    contactPerson: {
+      name: supplier?.contactPerson?.name || '',
+      phone: supplier?.contactPerson?.phone || '',
+      email: supplier?.contactPerson?.email || ''
+    },
+    rating: supplier?.rating || 3,
+    balance: supplier?.balance || 0
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
+  };
+
+  const handleContactPersonChange = (field, value) => {
+    setFormData({
+      ...formData,
+      contactPerson: {
+        ...formData.contactPerson,
+        [field]: value
+      }
+    });
   };
 
   return (
@@ -345,25 +437,26 @@ const SupplierModal = ({ supplier, onSubmit, onClose }) => {
           </h2>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Company Name *</label>
               <input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                placeholder="Enter company name"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Type *</label>
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
               >
                 <option value="Supplier">Supplier</option>
                 <option value="Agent">Agent</option>
@@ -373,87 +466,84 @@ const SupplierModal = ({ supplier, onSubmit, onClose }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Contact Number</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Contact Number *</label>
               <input
                 type="tel"
                 required
                 value={formData.contactNo}
                 onChange={(e) => setFormData({ ...formData, contactNo: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                placeholder="Enter contact number"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                placeholder="Enter email address"
               />
             </div>
             
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Address *</label>
               <input
                 type="text"
                 required
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                placeholder="Enter full address"
               />
             </div>
             
-            <div className="md:col-span-2 border-t pt-4">
-              <h3 className="font-medium text-slate-900 mb-3">Contact Person</h3>
+            <div className="md:col-span-2 border-t pt-6">
+              <h3 className="font-medium text-slate-900 mb-4 text-lg">Contact Person Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Name</label>
                   <input
                     type="text"
                     value={formData.contactPerson.name}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      contactPerson: { ...formData.contactPerson, name: e.target.value } 
-                    })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => handleContactPersonChange('name', e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                    placeholder="Contact person name"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
                   <input
                     type="tel"
                     value={formData.contactPerson.phone}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      contactPerson: { ...formData.contactPerson, phone: e.target.value } 
-                    })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => handleContactPersonChange('phone', e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                    placeholder="Contact person phone"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
                   <input
                     type="email"
                     value={formData.contactPerson.email}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      contactPerson: { ...formData.contactPerson, email: e.target.value } 
-                    })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => handleContactPersonChange('email', e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                    placeholder="Contact person email"
                   />
                 </div>
               </div>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Status *</label>
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
               >
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
@@ -461,11 +551,11 @@ const SupplierModal = ({ supplier, onSubmit, onClose }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Rating</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Rating</label>
               <select
                 value={formData.rating}
                 onChange={(e) => setFormData({ ...formData, rating: parseInt(e.target.value) })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
               >
                 <option value="1">1 Star</option>
                 <option value="2">2 Stars</option>
@@ -474,19 +564,31 @@ const SupplierModal = ({ supplier, onSubmit, onClose }) => {
                 <option value="5">5 Stars</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Balance ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.balance}
+                onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                placeholder="0.00"
+              />
+            </div>
           </div>
           
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-end space-x-3 pt-6 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:text-slate-800 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              className="px-6 py-2 text-slate-600 hover:text-slate-800 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors duration-200"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 font-medium"
             >
               {supplier ? 'Update Supplier' : 'Add Supplier'}
             </button>
@@ -498,12 +600,14 @@ const SupplierModal = ({ supplier, onSubmit, onClose }) => {
 };
 
 const StatCard = ({ title, value, percentage, icon, color }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
+  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow duration-200">
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm font-medium text-slate-600">{title}</p>
         <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
-        {percentage && <p className="text-sm text-green-600 mt-1">{percentage}% of total</p>}
+        {percentage !== undefined && (
+          <p className="text-sm text-green-600 mt-1">{percentage}% of total</p>
+        )}
       </div>
       <div className={`w-12 h-12 bg-gradient-to-r ${color} rounded-lg flex items-center justify-center text-white`}>
         {icon}

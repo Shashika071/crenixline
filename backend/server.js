@@ -1,12 +1,15 @@
 import AdminRouter from "./routers/adminRoutes.js";
+import AlertRouter from './routers/alertRoutes.js';
 import EmployeeRouter from "./routers/employeeRoutes.js";
 import ExpenseRouter from "./routers/expenseRoutes.js";
+import MachineRoutes from "./routers/machineRoutes.js";
 import MaterialRouter from "./routers/materialRoutes.js";
 import OrderRouter from "./routers/orderRoutes.js";
 import PaymentRouter from "./routers/paymentRoutes.js";
-import ProductionRouter from "./routers/productionRoutes.js";
 import ReportRouter from "./routers/reportRoutes.js";
+import SalaryRouter from "./routers/salaryRoutes.js";
 import SupplierRouter from "./routers/supplierRoutes.js";
+import autoAlertService from './services/autoAlertService.js';
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -49,6 +52,8 @@ app.get("/health", (req, res) => {
   });
 });
 
+autoAlertService.startAutoAlerts();
+
 // API Routes
 app.use("/api/admin", AdminRouter);
 app.use("/api/employees", EmployeeRouter);
@@ -56,19 +61,18 @@ app.use("/api/orders", OrderRouter);
 app.use("/api/materials", MaterialRouter);
 app.use("/api/suppliers", SupplierRouter);
 app.use("/api/expenses", ExpenseRouter);
-app.use("/api/production", ProductionRouter);
 app.use("/api/payments", PaymentRouter);
 app.use("/api/reports", ReportRouter);
-
+app.use('/api/machines', MachineRoutes);
+app.use("/api/alerts", AlertRouter);
+app.use("/api/salary", SalaryRouter);  
 // 404 Handler
-// Correct 404 Handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: "API endpoint not found"
   });
 });
-
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

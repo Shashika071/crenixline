@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://crexline.me/api';
- 
+const API_BASE_URL = 'https://crexline.me';
+
+
+//const API_BASE_URL = 'http://localhost:5000/api';
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -58,7 +60,7 @@ export const employeeAPI = {
     params,
     responseType: 'blob' 
   }),
-  
+   markBulkAttendance: (data) => api.post('/employees/attendance/bulk', data),
   // Salary operations
   calculateSalary: (params) => api.get('/employees/salary/calculate', { params }),
   exportSalaryReport: (params) => api.get('/employees/salary/export', { 
@@ -79,29 +81,55 @@ export const employeeAPI = {
   getProbationEmployees: () => api.get('/employees/probation')
 };
 // Order API
+// services/api.js - Update orderAPI
 export const orderAPI = {
   getAll: (params) => api.get('/orders', { params }),
   getById: (id) => api.get(`/orders/${id}`),
   create: (data) => api.post('/orders', data),
   update: (id, data) => api.put(`/orders/${id}`, data),
+  delete: (id) => api.delete(`/orders/${id}`),
   updateProgress: (id, data) => api.patch(`/orders/${id}/progress`, data),
+  updateQuantity: (id, data) => api.patch(`/orders/${id}/quantity`, data),
   getStats: () => api.get('/orders/stats'),
+  
+  // Production job methods
+  assignJob: (id, data) => api.patch(`/orders/${id}/assign-job`, data),
+  updateJobAssignment: (id, data) => api.patch(`/orders/${id}/update-job`, data),  
+  completeStage: (id, data) => api.patch(`/orders/${id}/complete-stage`, data),  
+  getProductionStatus: (id) => api.get(`/orders/${id}/production-status`),
 };
+// services/api.js - Update the Material and Machine API sections
 
 // Material API
 export const materialAPI = {
   getAll: (params) => api.get('/materials', { params }),
+  getById: (id) => api.get(`/materials/${id}`),
   create: (data) => api.post('/materials', data),
+  update: (id, data) => api.put(`/materials/${id}`, data),
+  delete: (id) => api.delete(`/materials/${id}`), // Add this line
   updateStock: (id, data) => api.patch(`/materials/${id}/stock`, data),
   getLowStock: () => api.get('/materials/low-stock'),
 };
 
+// Machine API
+export const machineAPI = {
+  getAll: (params) => api.get('/machines', { params }),
+  getById: (id) => api.get(`/machines/${id}`),
+  create: (data) => api.post('/machines', data), // Make sure this exists
+  update: (id, data) => api.put(`/machines/${id}`, data),
+  delete: (id) => api.delete(`/machines/${id}`), // Add this line
+  updateMaintenance: (id, data) => api.patch(`/machines/${id}/maintenance`, data),
+  getMaintenanceSchedule: () => api.get('/machines/maintenance/schedule'),
+  getMachinesNeedingMaintenance: () => api.get('/machines/maintenance/needed'),
+};
+// Supplier API
 // Supplier API
 export const supplierAPI = {
   getAll: (params) => api.get('/suppliers', { params }),
   getById: (id) => api.get(`/suppliers/${id}`),
   create: (data) => api.post('/suppliers', data),
   update: (id, data) => api.put(`/suppliers/${id}`, data),
+  delete: (id) => api.delete(`/suppliers/${id}`), // Add delete method
 };
 
 // Expense API
@@ -131,4 +159,34 @@ export const reportAPI = {
   getOrderReport: (params) => api.get('/reports/orders', { params }),
 };
 
+// services/api.js - Add to your existing API file
+export const alertAPI = {
+  sendLowStockAlert: () => api.post('/alerts/low-stock'),
+  sendMaintenanceAlert: () => api.post('/alerts/maintenance'),
+  sendCustomAlert: (data) => api.post('/alerts/custom', data),
+};
+export const salaryAPI = {
+  // Allowances
+  createAllowance: (data) => api.post('/salary/allowances', data),
+  getAllowances: () => api.get('/salary/allowances'),
+  updateAllowance: (id, data) => api.put(`/salary/allowances/${id}`, data),
+  deleteAllowance: (id) => api.delete(`/salary/allowances/${id}`),
+  assignAllowance: (data) => api.post('/salary/allowances/assign', data),
+  getEmployeeAllowances: (employeeId) => api.get(`/salary/employees/${employeeId}/allowances`),
+  
+  // Salary Advances
+  requestAdvance: (data) => api.post('/salary/salary-advances', data),
+  getAdvances: (params) => api.get('/salary/salary-advances', { params }),
+  updateAdvanceStatus: (id, data) => api.patch(`/salary/salary-advances/${id}/status`, data),
+  getPendingAdvances: () => api.get('/salary/salary-advances/pending'),
+  deleteAdvance: (id) => api.delete(`/salary/${id}`),
+  // Payslips
+  calculatePayslip: (data) => api.post('/salary/payslips/calculate', data),
+  finalizePayslip: (id, data) => api.patch(`/salary/payslips/${id}/finalize`, data),
+  getPayslips: (params) => api.get('/salary/payslips', { params }),
+  getPayslip: (id) => api.get(`/salary/payslips/${id}`),
+  markAsPaid: (id) => api.patch(`/salary/payslips/${id}/paid`),
+ 
+deletePayslip: (payslipId) => api.delete(`/salary/payslips/${payslipId}`)
+};
 export default api;

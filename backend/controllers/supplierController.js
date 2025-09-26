@@ -51,3 +51,16 @@ export const updateSupplier = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+// Add this to your supplier controller
+export const deleteSupplier = async (req, res) => {
+  try {
+    const supplier = await Supplier.findByIdAndDelete(req.params.id);
+    if (!supplier) {
+      return res.status(404).json({ success: false, message: "Supplier not found" });
+    }
+    res.json({ success: true, message: "Supplier deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

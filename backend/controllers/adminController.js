@@ -4,7 +4,7 @@ const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "admin123";
 
  
-export const    login = (req, res) => {
+export const login = (req, res) => {
   const { username, password } = req.body;
 
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {

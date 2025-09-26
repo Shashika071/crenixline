@@ -28,6 +28,52 @@ export const getMaterials = async (req, res) => {
   }
 };
 
+export const getMaterialById = async (req, res) => {
+  try {
+    const material = await Material.findById(req.params.id).populate('supplierId');
+    
+    if (!material) {
+      return res.status(404).json({ success: false, message: "Material not found" });
+    }
+    
+    res.json({ success: true, data: material });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateMaterial = async (req, res) => {
+  try {
+    const material = await Material.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('supplierId');
+
+    if (!material) {
+      return res.status(404).json({ success: false, message: "Material not found" });
+    }
+    
+    res.json({ success: true, data: material });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteMaterial = async (req, res) => {
+  try {
+    const material = await Material.findByIdAndDelete(req.params.id);
+    
+    if (!material) {
+      return res.status(404).json({ success: false, message: "Material not found" });
+    }
+    
+    res.json({ success: true, message: "Material deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const updateMaterialStock = async (req, res) => {
   try {
     const { operation, quantity } = req.body; // operation: 'add' or 'subtract'
@@ -48,6 +94,7 @@ export const updateMaterialStock = async (req, res) => {
     }
 
     await material.save();
+    await material.populate('supplierId');
     res.json({ success: true, data: material });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });

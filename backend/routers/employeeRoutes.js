@@ -16,14 +16,15 @@ import {
   getLeaveBalances,
   getProbationEmployees,
   markAttendance,
+  markBulkAttendance,
   updateEmployee,
-  updateMedicalLeaveStatus
+  updateMedicalLeaveStatus,
 } from '../controllers/employeeController.js';
 
 import express from 'express';
 
 const router = express.Router();
-
+router.get('/factory-closures', getFactoryClosures);
 // Employee CRUD routes
 router.post('/', createEmployee);
 router.get('/', getEmployees);
@@ -37,7 +38,7 @@ router.delete('/:id', deleteEmployee);
 router.post('/attendance/mark', markAttendance);
 router.get('/attendance/list', getAttendance);
 router.get('/attendance/export', exportAttendance);
-
+router.post('/attendance/bulk', markBulkAttendance);
 // Salary routes
 router.get('/salary/calculate', calculateSalary);
 router.get('/salary/export', exportSalaryReport);
@@ -49,6 +50,6 @@ router.patch('/medical-leave/update', updateMedicalLeaveStatus);
 
 // Factory closure routes
 router.post('/factory-closures', createFactoryClosure);
-router.get('/factory-closures', getFactoryClosures);
+
 
 export default router;

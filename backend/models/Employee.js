@@ -37,7 +37,7 @@ const medicalLeaveSchema = new mongoose.Schema({
   processedDate: Date,
   adminNotes: String
 });
- // Update the attendance schema in models/Employee.js
+
 const attendanceSchema = new mongoose.Schema({
   date: {
     type: Date,
@@ -62,7 +62,7 @@ const attendanceSchema = new mongoose.Schema({
   isHalfDay: Boolean,
   isMedical: Boolean,
   isFactoryClosure: Boolean,
-  isPaidLeave: {  // New field to track if leave is paid
+  isPaidLeave: {
     type: Boolean,
     default: true
   }
@@ -96,6 +96,33 @@ const bankDetailsSchema = new mongoose.Schema({
 });
 
 const employeeSchema = new mongoose.Schema({
+  // EPF Fields
+  epfNumber: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true
+  },
+  hasEPF: {
+    type: Boolean,
+    default: true
+  },
+  
+  // Salary and Rates
+  salary: {
+    type: Number,
+    required: true
+  },
+  overtimeRate: {
+    type: Number,
+    default: 0
+  },
+  hourlyRate: {
+    type: Number, 
+    default: 0
+  },
+  
+  // Personal Information
   name: {
     type: String,
     required: true,
@@ -104,7 +131,8 @@ const employeeSchema = new mongoose.Schema({
   nic: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    trim: true
   },
   address: {
     type: String,
@@ -112,21 +140,15 @@ const employeeSchema = new mongoose.Schema({
   },
   contactNo: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   role: {
     type: String,
-    required: true,
-    enum: ['Tailor', 'Cutter', 'Supervisor', 'Quality Checker', 'Packer', 'Manager']
-  },
-  salary: {
-    type: Number,
     required: true
   },
-  hourlyRate: {
-    type: Number,
-    default: 0
-  },
+  
+  // Employment Details
   joinDate: {
     type: Date,
     default: Date.now
@@ -144,16 +166,18 @@ const employeeSchema = new mongoose.Schema({
     enum: ['Active', 'Inactive', 'On Leave'],
     default: 'Active'
   },
-  overtimeRate: {
-    type: Number,
-    default: 0
-  },
+  
+  // Financial Details
   bankDetails: bankDetailsSchema,
+  
+  // Emergency Contact
   emergencyContact: {
     name: String,
     relationship: String,
     phone: String
   },
+  
+  // Work Schedule
   workingSchedule: {
     monday: { start: String, end: String, working: Boolean },
     tuesday: { start: String, end: String, working: Boolean },
@@ -163,6 +187,8 @@ const employeeSchema = new mongoose.Schema({
     saturday: { start: String, end: String, working: Boolean },
     sunday: { start: String, end: String, working: Boolean }
   },
+  
+  // Attendance and Leaves
   attendance: [attendanceSchema],
   medicalLeaves: [medicalLeaveSchema],
   leaveBalances: {
@@ -175,52 +201,56 @@ const employeeSchema = new mongoose.Schema({
     year: Number,
     takenAnnual: { type: Number, default: 0 },
     takenMedical: { type: Number, default: 0 },
-    takenProbation: { type: Number, default: 0 },
-    takenHalfDays: { type: Number, default: 0 }
+    monthlyLeaves: { type: [Number], default: Array(12).fill(0) },
+    monthlyHalfDays: { type: [Number], default: Array(12).fill(0) }
   }]
 }, {
   timestamps: true
 });
 
-// Pre-save middleware
+// Remove the pre-save middleware for rate calculations since they should be dynamic
 employeeSchema.pre('save', function(next) {
-  // Set probation end date (6 months from join date)
-  if (this.isModified('joinDate') || !this.probationEndDate) {
-    this.probationEndDate = new Date(this.joinDate);
-    this.probationEndDate.setMonth(this.probationEndDate.getMonth() + 6);
-  }
-  
-  // Update employment status and leave balances
   const now = new Date();
   const currentYear = now.getFullYear();
-  
-  if (now >= this.probationEndDate && this.employmentStatus === 'Probation') {
-    this.employmentStatus = 'Confirmed';
-    // Initialize regular leave balances after probation
-    this.leaveBalances.annual = 21;
-    this.leaveBalances.halfDays = 2;
-    this.leaveBalances.probation = 0;
+
+  // Only recalc probationEndDate if employmentStatus or joinDate changed
+  if (this.isModified('employmentStatus') || this.isModified('joinDate')) {
+    if (this.employmentStatus === 'Probation') {
+      this.probationEndDate = new Date(this.joinDate);
+      this.probationEndDate.setMonth(this.probationEndDate.getMonth() + 6);
+    } else {
+      this.probationEndDate = new Date(this.joinDate);
+    }
   }
-  
-  // Initialize leave history for current year
-  if (!this.leaveHistory.find(l => l.year === currentYear)) {
-    this.leaveHistory.push({
+
+  // Initialize leave history for current year if not present with proper structure
+  let leaveHistory = this.leaveHistory.find(l => l.year === currentYear);
+  if (!leaveHistory) {
+    leaveHistory = {
       year: currentYear,
       takenAnnual: 0,
       takenMedical: 0,
-      takenProbation: 0,
-      takenHalfDays: 0
-    });
+      monthlyLeaves: Array(12).fill(0),
+      monthlyHalfDays: Array(12).fill(0)
+    };
+    this.leaveHistory.push(leaveHistory);
+  } else {
+    // Ensure existing leave history has the proper structure
+    if (!leaveHistory.monthlyLeaves || leaveHistory.monthlyLeaves.length !== 12) {
+      leaveHistory.monthlyLeaves = Array(12).fill(0);
+    }
+    if (!leaveHistory.monthlyHalfDays || leaveHistory.monthlyHalfDays.length !== 12) {
+      leaveHistory.monthlyHalfDays = Array(12).fill(0);
+    }
   }
-  
-  // Calculate hourly rates
-  if (this.isModified('salary')) {
-    const workingDaysPerMonth = 26;
-    const hoursPerDay = 8;
-    this.hourlyRate = this.salary / (workingDaysPerMonth * hoursPerDay);
-    this.overtimeRate = this.hourlyRate * 1.5;
+
+  // Update leave balances if employmentStatus changed to Confirmed
+  if (this.employmentStatus === 'Confirmed' && this.leaveBalances.annual === 0) {
+    this.leaveBalances.annual = 21;
+    this.leaveBalances.halfDays = 0;
+    this.leaveBalances.probation = 0;
   }
-  
+
   next();
 });
 
@@ -229,5 +259,6 @@ employeeSchema.index({ role: 1 });
 employeeSchema.index({ status: 1 });
 employeeSchema.index({ 'attendance.date': 1 });
 employeeSchema.index({ probationEndDate: 1 });
+employeeSchema.index({ epfNumber: 1 });
 
 export default mongoose.model("Employee", employeeSchema);

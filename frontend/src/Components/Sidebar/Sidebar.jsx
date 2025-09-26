@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  ClipboardList,
   DollarSign,
   FileText,
   Home,
@@ -19,10 +20,11 @@ const Sidebar = ({ isOpen, setIsOpen, activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'employees', label: 'Employees', icon: Users },
-    { id: 'orders', label: 'Orders', icon: ShoppingCart },
+    
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'suppliers', label: 'Suppliers', icon: Truck },
-    { id: 'production', label: 'Production', icon: BarChart3 },
+    { id: 'orders', label: 'Orders', icon: ShoppingCart },
+    { id: 'production', label: 'Job Management', icon: ClipboardList },
     { id: 'finance', label: 'Finance', icon: DollarSign },
     { id: 'reports', label: 'Reports', icon: FileText },
   ];
