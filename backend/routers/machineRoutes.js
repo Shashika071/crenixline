@@ -9,11 +9,12 @@ import {
   updateMachineMaintenance
 } from "../controllers/machineController.js";
 
+import authMiddleware from "../middleware/authMiddleware.js";
 import express from "express";
 
 const MachineRoutes  = express.Router();
 
- 
+MachineRoutes.use(authMiddleware);
 
 // CRUD operations
 MachineRoutes.post("/", createMachine);
