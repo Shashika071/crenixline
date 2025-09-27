@@ -111,7 +111,7 @@ const EmployeeManagement = () => {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
               <h1 className="text-3xl font-bold text-slate-900">Employee Management</h1>
@@ -168,7 +168,7 @@ const EmployeeManagement = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Calendar View */}
         {showCalendar && (
           <div className="mb-6">
