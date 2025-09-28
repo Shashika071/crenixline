@@ -102,8 +102,7 @@ const employeeSchema = new mongoose.Schema({
     unique: true,
     sparse: true,  // This allows multiple null values
     trim: true,
-     default: undefined,
-  
+    default: undefined,
   },
   hasEPF: {
     type: Boolean,
@@ -210,18 +209,58 @@ const employeeSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Updated pre-save middleware with proper EPF handling
+// Helper function to generate unique EPF-like identifier
+const generateEPFIdentifier = async function(name, EmployeeModel) {
+  // Get first 2 letters of the name (uppercase)
+  const namePrefix = name.substring(0, 2).toUpperCase();
+  
+  let isUnique = false;
+  let generatedEPF = '';
+  let attempts = 0;
+  const maxAttempts = 10;
+  
+  while (!isUnique && attempts < maxAttempts) {
+    // Generate random number (6 digits)
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    generatedEPF = `${namePrefix}${randomNum}`;
+    
+    // Check if this EPF number already exists
+    const existingEmployee = await EmployeeModel.findOne({ epfNumber: generatedEPF });
+    if (!existingEmployee) {
+      isUnique = true;
+    }
+    
+    attempts++;
+  }
+  
+  // If still not unique after max attempts, add timestamp
+  if (!isUnique) {
+    const timestamp = Date.now().toString().slice(-6);
+    generatedEPF = `${namePrefix}${timestamp}`;
+  }
+  
+  return generatedEPF;
+};
+
+// Updated pre-save middleware with EPF identifier generation
 employeeSchema.pre('save', async function(next) {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  // Handle EPF number - ensure it's null if empty or when hasEPF is false
+  // Handle EPF number based on hasEPF flag
   if (!this.hasEPF) {
-    this.epfNumber = undefined; // No EPF at all
-  } else if (this.epfNumber && this.epfNumber.trim() === '') {
-    this.epfNumber = undefined; // EPF enabled but number is empty
-  } else if (this.epfNumber) {
-    this.epfNumber = this.epfNumber.trim(); // Clean the EPF number
+    // Generate unique EPF-like identifier when hasEPF is false
+    if (!this.epfNumber || this.epfNumber === '') {
+      this.epfNumber = await generateEPFIdentifier(this.name, this.constructor);
+    }
+  } else {
+    // hasEPF is true - validate the provided EPF number
+    if (this.epfNumber && this.epfNumber.trim() === '') {
+      this.epfNumber = undefined;
+    } else if (this.epfNumber) {
+      this.epfNumber = this.epfNumber.trim();
+    }
+    // If hasEPF is true but no epfNumber provided, leave it as undefined
   }
 
   // Only recalc probationEndDate if employmentStatus or joinDate changed
@@ -312,6 +351,9 @@ employeeSchema.index({ epfNumber: 1 }); // Sparse unique index is defined in sch
 
 // Virtual for formatted EPF display
 employeeSchema.virtual('formattedEPF').get(function() {
+  if (!this.hasEPF) {
+    return `${this.epfNumber} (No EPF)`;
+  }
   return this.epfNumber || 'Not Provided';
 });
 
