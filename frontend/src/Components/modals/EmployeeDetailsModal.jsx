@@ -1,10 +1,37 @@
 // EmployeeDetailsModal.jsx
 
-import { Building, Calendar, DollarSign, Landmark, MapPin, Percent, Phone, Shield, User, X } from 'lucide-react';
+import { Building, Calendar, DollarSign, Heart, Landmark, MapPin, Percent, Phone, Shield, User, X } from 'lucide-react';
 
 import React from 'react';
 
 const EmployeeDetailsModal = ({ employee, onClose }) => {
+  
+  // Calculate employment duration
+  const calculateEmploymentDuration = () => {
+    const joinDate = new Date(employee.joinDate);
+    const currentDate = new Date();
+    
+    let years = currentDate.getFullYear() - joinDate.getFullYear();
+    let months = currentDate.getMonth() - joinDate.getMonth();
+    
+    // Adjust if current month is before join month
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    
+    // Adjust if current day is before join day in the same month
+    if (months === 0 && currentDate.getDate() < joinDate.getDate()) {
+      years--;
+      months = 11;
+    }
+    
+    return { years, months };
+  };
+
+  const duration = calculateEmploymentDuration();
+  const employmentDuration = `${duration.years} years ${duration.months} months`;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
@@ -54,6 +81,30 @@ const EmployeeDetailsModal = ({ employee, onClose }) => {
             </div>
           </div>
 
+          {/* Emergency Contact */}
+          {employee.emergencyContact && (
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-medium mb-4 flex items-center">
+                <Heart className="text-red-500 mr-2" size={20} />
+                Emergency Contact
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-red-50 p-4 rounded-lg">
+                <div>
+                  <div className="text-sm text-slate-600">Name</div>
+                  <div className="font-medium text-red-700">{employee.emergencyContact.name}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-slate-600">Relationship</div>
+                  <div className="font-medium text-red-700 capitalize">{employee.emergencyContact.relationship}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-slate-600">Phone</div>
+                  <div className="font-medium text-red-700">{employee.emergencyContact.phone}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Employment Details */}
           <div className="border-t pt-4">
             <h3 className="text-lg font-medium mb-4">Employment Details</h3>
@@ -74,9 +125,9 @@ const EmployeeDetailsModal = ({ employee, onClose }) => {
                 <div className="text-sm text-slate-500">Join Date</div>
                 <div className="font-medium">{new Date(employee.joinDate).toLocaleDateString()}</div>
               </div>
-               <div>
+              <div>
                 <div className="text-sm text-slate-500">Employment Duration</div>
-                <div className="font-medium">{ employee.employmentDuration}</div>
+                <div className="font-medium">{employmentDuration}</div>
               </div>
               <div>
                 <div className="text-sm text-slate-500">EPF Enrollment</div>
@@ -169,21 +220,13 @@ const EmployeeDetailsModal = ({ employee, onClose }) => {
           {/* Salary Details */}
           <div className="border-t pt-4">
             <h3 className="text-lg font-medium mb-4">Salary Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center space-x-3">
                 <DollarSign className="text-slate-400" size={20} />
                 <div>
                   <div className="text-sm text-slate-500">Basic Salary</div>
                   <div className="font-medium">Rs. {employee.salary?.toLocaleString()}</div>
                 </div>
-              </div>
-              <div>
-                <div className="text-sm text-slate-500">Hourly Rate</div>
-                <div className="font-medium">Rs. {employee.hourlyRate?.toFixed(2)}</div>
-              </div>
-              <div>
-                <div className="text-sm text-slate-500">Overtime Rate</div>
-                <div className="font-medium">Rs. {employee.overtimeRate?.toFixed(2)}</div>
               </div>
             </div>
           </div>

@@ -105,8 +105,6 @@ export const getEmployeeById = async (req, res) => {
   }
 };
 
-// controllers/employeeController.js
-
 export const updateEmployee = async (req, res) => {
   try {
     let employee = await Employee.findById(req.params.id);
