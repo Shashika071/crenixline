@@ -16,7 +16,8 @@ const EmployeeTable = ({
   onDelete,
   onMarkAttendance,
   onViewLeaveBalances,
-  onCalculateSalary
+  onCalculateSalary,
+  onViewDetails
 }) => {
   // get unique roles from employees
   const roles = ["all", ...new Set(employees.map(e => e.role).filter(Boolean))];
@@ -128,6 +129,7 @@ const EmployeeTable = ({
                   onMarkAttendance={onMarkAttendance}
                   onViewLeaveBalances={onViewLeaveBalances}
                   onCalculateSalary={onCalculateSalary}
+                  onViewDetails={onViewDetails}
                 />
               ))}
             </tbody>

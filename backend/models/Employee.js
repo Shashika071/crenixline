@@ -96,12 +96,14 @@ const bankDetailsSchema = new mongoose.Schema({
 });
 
 const employeeSchema = new mongoose.Schema({
-  // EPF Fields
+  // EPF Fields - Fixed with proper unique constraint
   epfNumber: {
     type: String,
     unique: true,
-    sparse: true,
-    trim: true
+    sparse: true,  // This allows multiple null values
+    trim: true,
+     default: undefined,
+  
   },
   hasEPF: {
     type: Boolean,
@@ -208,10 +210,19 @@ const employeeSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Remove the pre-save middleware for rate calculations since they should be dynamic
-employeeSchema.pre('save', function(next) {
+// Updated pre-save middleware with proper EPF handling
+employeeSchema.pre('save', async function(next) {
   const now = new Date();
   const currentYear = now.getFullYear();
+
+  // Handle EPF number - ensure it's null if empty or when hasEPF is false
+  if (!this.hasEPF) {
+    this.epfNumber = undefined; // No EPF at all
+  } else if (this.epfNumber && this.epfNumber.trim() === '') {
+    this.epfNumber = undefined; // EPF enabled but number is empty
+  } else if (this.epfNumber) {
+    this.epfNumber = this.epfNumber.trim(); // Clean the EPF number
+  }
 
   // Only recalc probationEndDate if employmentStatus or joinDate changed
   if (this.isModified('employmentStatus') || this.isModified('joinDate')) {
@@ -245,20 +256,82 @@ employeeSchema.pre('save', function(next) {
   }
 
   // Update leave balances if employmentStatus changed to Confirmed
-  if (this.employmentStatus === 'Confirmed' && this.leaveBalances.annual === 0) {
+  if (this.isModified('employmentStatus') && this.employmentStatus === 'Confirmed' && this.leaveBalances.annual === 0) {
     this.leaveBalances.annual = 21;
     this.leaveBalances.halfDays = 0;
     this.leaveBalances.probation = 0;
   }
 
+  // Calculate hourly rate based on salary (assuming 8 hours/day, 26 days/month)
+  if (this.isModified('salary') && this.salary > 0) {
+    const monthlyHours = 8 * 26; // 8 hours/day * 26 working days
+    this.hourlyRate = parseFloat((this.salary / monthlyHours).toFixed(2));
+    
+    // Overtime rate is typically 1.5x hourly rate
+    this.overtimeRate = parseFloat((this.hourlyRate * 1.5).toFixed(2));
+  }
+
   next();
 });
 
+// Static method to check for duplicate EPF numbers
+employeeSchema.statics.checkDuplicateEPF = async function(epfNumber, excludeId = null) {
+  if (!epfNumber || epfNumber.trim() === '') {
+    return null; // No check needed for null/empty EPF numbers
+  }
+  
+  const query = { epfNumber: epfNumber.trim() };
+  if (excludeId) {
+    query._id = { $ne: excludeId };
+  }
+  
+  return await this.findOne(query);
+};
+
+// Instance method to validate EPF uniqueness
+employeeSchema.methods.isEPFUnique = async function() {
+  if (!this.epfNumber || this.epfNumber.trim() === '') {
+    return true; // Null/empty EPF numbers are always considered unique
+  }
+  
+  const existingEmployee = await this.constructor.findOne({
+    epfNumber: this.epfNumber.trim(),
+    _id: { $ne: this._id }
+  });
+  
+  return !existingEmployee;
+};
+
+// Indexes
 employeeSchema.index({ nic: 1 });
 employeeSchema.index({ role: 1 });
 employeeSchema.index({ status: 1 });
 employeeSchema.index({ 'attendance.date': 1 });
 employeeSchema.index({ probationEndDate: 1 });
-employeeSchema.index({ epfNumber: 1 });
+employeeSchema.index({ epfNumber: 1 }); // Sparse unique index is defined in schema
+
+// Virtual for formatted EPF display
+employeeSchema.virtual('formattedEPF').get(function() {
+  return this.epfNumber || 'Not Provided';
+});
+
+// Virtual for employment duration
+employeeSchema.virtual('employmentDuration').get(function() {
+  const joinDate = this.joinDate;
+  const today = new Date();
+  const diffTime = Math.abs(today - joinDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const years = Math.floor(diffDays / 365);
+  const months = Math.floor((diffDays % 365) / 30);
+  
+  if (years > 0) {
+    return `${years} year${years > 1 ? 's' : ''} ${months} month${months > 1 ? 's' : ''}`;
+  }
+  return `${months} month${months > 1 ? 's' : ''}`;
+});
+
+// Transform output to include virtuals
+employeeSchema.set('toJSON', { virtuals: true });
+employeeSchema.set('toObject', { virtuals: true });
 
 export default mongoose.model("Employee", employeeSchema);

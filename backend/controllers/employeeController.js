@@ -8,6 +8,8 @@ import FactoryClosure from "../models/FactoryClosure.js";
 import Payslip from '../models/Payslip.js';
 import SalaryAdvance from '../models/SalaryAdvance.js';
 
+// controllers/employeeController.js
+
 export const createEmployee = async (req, res) => {
   try {
     const defaultSchedule = {
@@ -22,33 +24,59 @@ export const createEmployee = async (req, res) => {
 
     const currentYear = new Date().getFullYear();
     
+    // Handle EPF number properly
+    const hasEPF = req.body.hasEPF !== false; // Default to true if not specified
+    let epfNumber = null;
+    
+    if (hasEPF && req.body.epfNumber && req.body.epfNumber.trim() !== '') {
+      epfNumber = req.body.epfNumber.trim();
+      
+      // Check for duplicate EPF number
+      const existingEmployee = await Employee.findOne({ epfNumber });
+      if (existingEmployee) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `EPF number ${epfNumber} is already assigned to another employee` 
+        });
+      }
+    }
+
     const employeeData = {
       ...req.body,
+      hasEPF: hasEPF,
+      epfNumber: epfNumber,
       workingSchedule: req.body.workingSchedule || defaultSchedule,
       leaveBalances: {
         annual: 0,
-        medical: 24, // Medical leaves available from day 1
+        medical: 24,
         probation: 2,
         halfDays: 0
       },
-      // Initialize leaveHistory with proper structure
       leaveHistory: [{
         year: currentYear,
         takenAnnual: 0,
         takenMedical: 0,
-        monthlyLeaves: Array(12).fill(0), // Initialize with 12 months of zeros
-        monthlyHalfDays: Array(12).fill(0) // Initialize with 12 months of zeros
+        monthlyLeaves: Array(12).fill(0),
+        monthlyHalfDays: Array(12).fill(0)
       }]
     };
 
     const employee = new Employee(employeeData);
+    
+    // Validate EPF uniqueness
+    if (!await employee.isEPFUnique()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'EPF number must be unique' 
+      });
+    }
+    
     await employee.save();
     res.status(201).json({ success: true, data: employee });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
-
 export const getEmployees = async (req, res) => {
   try {
     const { status, role, employmentStatus } = req.query;
@@ -77,20 +105,84 @@ export const getEmployeeById = async (req, res) => {
   }
 };
 
+// controllers/employeeController.js
+
 export const updateEmployee = async (req, res) => {
   try {
-
     let employee = await Employee.findById(req.params.id);
     if (!employee) {
       return res.status(404).json({ success: false, message: "Employee not found" });
     }
 
-    employee.set(req.body); // Use .set() to track changes
+    // Handle EPF number properly in updates
+    const hasEPF = req.body.hasEPF !== false; // Default to true if not specified
+    let epfNumber = null;
+
+    if (hasEPF && req.body.epfNumber && req.body.epfNumber.trim() !== '') {
+      epfNumber = req.body.epfNumber.trim();
+      
+      // Check for duplicate EPF number (excluding current employee)
+      if (epfNumber !== employee.epfNumber) {
+        const existingEmployee = await Employee.findOne({ 
+          epfNumber: epfNumber,
+          _id: { $ne: req.params.id }
+        });
+        
+        if (existingEmployee) {
+          return res.status(400).json({ 
+            success: false, 
+            message: `EPF number ${epfNumber} is already assigned to another employee` 
+          });
+        }
+      }
+    }
+
+    // Prepare update data with proper EPF handling
+    const updateData = {
+      ...req.body,
+      hasEPF: hasEPF,
+      epfNumber: epfNumber
+    };
+
+    // Use set() to apply changes and trigger middleware
+    employee.set(updateData);
+
+    // Validate EPF uniqueness using instance method
+    if (!await employee.isEPFUnique()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'EPF number must be unique' 
+      });
+    }
+
+    // Validate the document before saving
+    await employee.validate();
+
     await employee.save();
 
     res.json({ success: true, data: employee });
   } catch (error) {
-    console.error(error);
+    console.error('Error updating employee:', error);
+    
+    // Handle specific MongoDB duplicate key error
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      const value = error.keyValue[field];
+      return res.status(400).json({ 
+        success: false, 
+        message: `${field} '${value}' already exists` 
+      });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        success: false, 
+        message: messages.join(', ') 
+      });
+    }
+
     res.status(400).json({ success: false, message: error.message });
   }
 };

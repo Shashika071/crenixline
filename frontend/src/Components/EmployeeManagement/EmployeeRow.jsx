@@ -1,6 +1,4 @@
-// components/EmployeeRow.jsx
-
-import { CheckCircle, DollarSign, Edit, Eye, RefreshCw, Trash2, UserCheck, XCircle } from 'lucide-react';
+import { CheckCircle, DollarSign, Edit, Eye, FileText, RefreshCw, Trash2, UserCheck, XCircle } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { employeeAPI } from '../../services/api';
@@ -10,8 +8,8 @@ const EmployeeRow = ({
   onEdit, 
   onDelete, 
   onMarkAttendance, 
-  onViewLeaveBalances, 
-  
+  onViewLeaveBalances,
+  onViewDetails  
 }) => {
   const [dynamicRates, setDynamicRates] = useState({
     hourlyRate: 0,
@@ -127,9 +125,7 @@ const EmployeeRow = ({
         <div className="text-xs text-slate-400 mt-1">
           <div>Hourly: Rs. {dynamicRates.hourlyRate > 0 ? dynamicRates.hourlyRate.toFixed(2) : '0.00'}</div>
           <div>OT Rate: Rs. {dynamicRates.overtimeRate.toFixed(2)}</div>
-      
         </div>
-   
       </td>
       
       <td className="px-6 py-4 whitespace-nowrap">
@@ -166,6 +162,14 @@ const EmployeeRow = ({
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center space-x-2">
           <button 
+            onClick={() => onViewDetails(employee)}  
+            className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-2 rounded-lg transition-colors"
+            title="View Full Details"
+          >
+            <FileText size={16} />
+          </button>
+          
+          <button 
             onClick={() => onViewLeaveBalances(employee)}
             className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 p-2 rounded-lg transition-colors"
             title="View Leave Balances"
@@ -180,7 +184,6 @@ const EmployeeRow = ({
           >
             <UserCheck size={16} />
           </button>
-           
           
           <button 
             onClick={() => onEdit(employee)}

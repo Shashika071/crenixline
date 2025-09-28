@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import AllowanceManagement from './AllowanceManagement';
 import AttendanceManagement from './AttendanceManagement';
 import AttendanceModal from '../modals/AttendanceModal';
+import EmployeeDetailsModal from '../modals/EmployeeDetailsModal';
 import EmployeeModal from '../modals/EmployeeModal';
 import EmployeeStats from './EmployeeStats';
 import EmployeeTable from './EmployeeTable';
@@ -25,7 +26,7 @@ const EmployeeManagement = () => {
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCalendar, setShowCalendar] = useState(false);
-
+ const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -34,11 +35,20 @@ const EmployeeManagement = () => {
   const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [showLeaveBalancesModal, setShowLeaveBalancesModal] = useState(false);
   const [showFactoryClosureModal, setShowFactoryClosureModal] = useState(false);
-
+  
   useEffect(() => {
     fetchEmployees();
   }, []);
+   const handleViewDetails = (employee) => {
+    setSelectedEmployee(employee);
+    setIsDetailsModalOpen(true);
+  };
 
+  // Function to close the modal
+  const handleCloseDetailsModal = () => {
+    setIsDetailsModalOpen(false);
+    setSelectedEmployee(null);
+  };
   const fetchEmployees = async () => {
     try {
       setLoading(true);
@@ -221,6 +231,7 @@ const EmployeeManagement = () => {
             setFilterStatus={setFilterStatus}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onViewDetails={handleViewDetails}
             onMarkAttendance={(employee) => {
               setSelectedEmployee(employee);
               setShowAttendanceModal(true);
@@ -294,6 +305,13 @@ const EmployeeManagement = () => {
           onSuccess={fetchEmployees}
         />
       )}
+        {isDetailsModalOpen && selectedEmployee && (
+        <EmployeeDetailsModal
+          employee={selectedEmployee}
+          onClose={handleCloseDetailsModal}
+        />
+      )}
+      
     </div>
   );
 };
