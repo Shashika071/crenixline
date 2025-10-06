@@ -1,6 +1,6 @@
 // components/modals/FactoryClosureModal.jsx
 
-import { AlertTriangle, Building, Calendar, X } from 'lucide-react';
+import { AlertTriangle, Ban, Building, Calendar, DollarSign, X } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { employeeAPI } from '../../services/api';
@@ -11,7 +11,10 @@ const FactoryClosureModal = ({ employees, onClose, onSuccess }) => {
     reason: 'Holiday',
     description: '',
     affectedEmployees: [],
-    isForAllEmployees: true
+    isForAllEmployees: true,
+    // NEW: Default values based on reason
+    isActualClosure: false,
+    allowWorkWithDoublePay: true
   });
 
   const [loading, setLoading] = useState(false);
@@ -24,6 +27,17 @@ const FactoryClosureModal = ({ employees, onClose, onSuccess }) => {
     'Inventory',
     'Other'
   ];
+
+  // NEW: Handle reason change to set appropriate flags
+  const handleReasonChange = (reason) => {
+    const isActualClosure = reason !== 'Holiday';
+    setFormData({
+      ...formData,
+      reason,
+      isActualClosure,
+      allowWorkWithDoublePay: !isActualClosure
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,23 +56,54 @@ const FactoryClosureModal = ({ employees, onClose, onSuccess }) => {
     }
   };
 
+  // NEW: Get closure type description
+  const getClosureTypeDescription = () => {
+    return formData.isActualClosure 
+      ? "Factory is CLOSED. No work allowed."
+      : "Factory is OPEN for work with DOUBLE PAY.";
+  };
+
+  // NEW: Get closure type color and icon
+  const getClosureTypeStyle = () => {
+    return formData.isActualClosure 
+      ? { bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: <Ban size={16} /> }
+      : { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: <DollarSign size={16} /> };
+  };
+
+  const closureStyle = getClosureTypeStyle();
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center space-x-2">
             <Building className="w-6 h-6 text-orange-600" />
-            <h2 className="text-xl font-bold text-slate-900">Record Factory Closure</h2>
+            <h2 className="text-xl font-bold text-slate-900">Record Factory Day Status</h2>
           </div>
-          <p className="text-slate-600 mt-1">Mark a day when the factory is closed</p>
+          <p className="text-slate-600 mt-1">Mark factory status for a specific day</p>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* NEW: Closure Type Indicator */}
+          <div className={`p-3 rounded-lg border ${closureStyle.bg} ${closureStyle.border}`}>
+            <div className="flex items-center space-x-2">
+              {closureStyle.icon}
+              <div>
+                <div className={`font-semibold ${closureStyle.text}`}>
+                  {formData.isActualClosure ? 'Factory Closure' : 'Holiday'}
+                </div>
+                <div className={`text-sm ${closureStyle.text} opacity-80`}>
+                  {getClosureTypeDescription()}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 <Calendar className="inline w-4 h-4 mr-2" />
-                Closure Date
+                Date
               </label>
               <input
                 type="date"
@@ -76,7 +121,7 @@ const FactoryClosureModal = ({ employees, onClose, onSuccess }) => {
               </label>
               <select
                 value={formData.reason}
-                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                onChange={(e) => handleReasonChange(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
               >
                 {reasons.map(reason => (
@@ -93,7 +138,7 @@ const FactoryClosureModal = ({ employees, onClose, onSuccess }) => {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg"
               rows="3"
-              placeholder="Describe the reason for closure..."
+              placeholder="Describe the reason..."
             />
           </div>
 
@@ -151,14 +196,16 @@ const FactoryClosureModal = ({ employees, onClose, onSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center space-x-2"
+              className={`px-6 py-2 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center space-x-2 ${
+                formData.isActualClosure ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
+              }`}
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               ) : (
                 <Building size={16} />
               )}
-              <span>Record Closure</span>
+              <span>{formData.isActualClosure ? 'Record Closure' : 'Record Holiday'}</span>
             </button>
           </div>
         </form>

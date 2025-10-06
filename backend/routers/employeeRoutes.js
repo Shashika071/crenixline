@@ -1,44 +1,52 @@
-// routes/employeeRoutes.js
-
 import {
   applyMedicalLeave,
+  getLeaveBalances,
+  updateMedicalLeaveStatus
+} from '../controllers/leaveController.js';
+import {
   calculateSalary,
+  exportSalaryReport
+} from '../controllers/salaryController.js';
+import {
   createEmployee,
-  createFactoryClosure,
   deleteEmployee,
-  exportAttendance,
-  exportSalaryReport,
-  getAttendance,
   getEmployeeById,
   getEmployeeStats,
   getEmployees,
-  getFactoryClosures,
-  getLeaveBalances,
   getProbationEmployees,
-  markAttendance,
-  markBulkAttendance,
-  updateEmployee,
-  updateMedicalLeaveStatus,
+  updateEmployee
 } from '../controllers/employeeController.js';
+import {
+  createFactoryClosure,
+  getFactoryClosures
+} from '../controllers/factoryClosureController.js';
+import {
+  exportAttendance,
+  getAttendance,
+  markAttendance,
+  markBulkAttendance
+} from '../controllers/attendanceController.js';
 
 import express from 'express';
+import upload from '../middleware/upload.js';
 
 const router = express.Router();
 router.get('/factory-closures', getFactoryClosures);
 // Employee CRUD routes
-router.post('/', createEmployee);
+router.post('/', upload.single('profileImage'), createEmployee);
 router.get('/', getEmployees);
 router.get('/stats', getEmployeeStats);
 router.get('/probation', getProbationEmployees);
 router.get('/:id', getEmployeeById);
-router.put('/:id', updateEmployee);
+router.put('/:id', upload.single('profileImage'), updateEmployee);
 router.delete('/:id', deleteEmployee);
 
 // Attendance routes
 router.post('/attendance/mark', markAttendance);
+router.post('/attendance/bulk', markBulkAttendance);
 router.get('/attendance/list', getAttendance);
 router.get('/attendance/export', exportAttendance);
-router.post('/attendance/bulk', markBulkAttendance);
+
 // Salary routes
 router.get('/salary/calculate', calculateSalary);
 router.get('/salary/export', exportSalaryReport);
@@ -50,6 +58,6 @@ router.patch('/medical-leave/update', updateMedicalLeaveStatus);
 
 // Factory closure routes
 router.post('/factory-closures', createFactoryClosure);
-
+ 
 
 export default router;

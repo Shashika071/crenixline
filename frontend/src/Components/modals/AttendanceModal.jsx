@@ -15,12 +15,12 @@ const AttendanceModal = ({ employee, onClose, onSuccess }) => {
     status: 'Present',
     notes: '',
     isHalfDay: false,
-    isMedical: false
+    isMedical: false,
+    isCasual: false
   });
 
   const [loading, setLoading] = useState(false);
   const [leaveBalances, setLeaveBalances] = useState(null);
-  const [isInProbation, setIsInProbation] = useState(false);
 
   // Fetch leave balances when component mounts
   useEffect(() => {
@@ -31,36 +31,65 @@ const AttendanceModal = ({ employee, onClose, onSuccess }) => {
     try {
       const response = await employeeAPI.getLeaveBalances(employee._id);
       setLeaveBalances(response.data.data);
-      setIsInProbation(response.data.data.isInProbation || false);
     } catch (error) {
       console.error('Error fetching leave balances:', error);
     }
   };
-
 const handleSubmit = async (e) => {
   e.preventDefault();
   setLoading(true);
 
   try {
-    // FIX: Properly handle time fields for different statuses
+    // FIXED: Properly handle leaveType with correct enum values
     const attendanceData = {
       employeeId: employee._id,
       date: new Date(formData.date).toISOString(),
       status: formData.status,
       notes: formData.notes,
       isHalfDay: formData.isHalfDay,
-      isMedical: formData.isMedical
+      isMedical: formData.isMedical,
+      isCasual: formData.isCasual
     };
 
-    // Include time fields for both Present and Half Day statuses
+    // FIXED: Map status to leaveType with proper enum values
+    if (formData.status === 'Medical Leave') {
+      attendanceData.leaveType = 'medical';
+    } else if (formData.status === 'Casual Leave') {
+      attendanceData.leaveType = 'casual';
+    } else if (formData.status === 'Leave') {
+      attendanceData.leaveType = 'annual';
+    } else if (formData.status === 'Half Day') {
+      attendanceData.leaveType = 'annual'; // Half day also uses annual leave
+    } else {
+      // For Present, Absent, Factory Closure, etc. - set to null, NOT empty string
+      attendanceData.leaveType = null;
+    }
+
+    // FIXED: Clean up empty values - set to null instead of empty strings
+    Object.keys(attendanceData).forEach(key => {
+      if (attendanceData[key] === '' || attendanceData[key] === undefined) {
+        attendanceData[key] = null;
+      }
+    });
+
+    // FIXED: Proper date-time formatting for time fields
     if (formData.status === 'Present' || formData.status === 'Half Day') {
-      attendanceData.checkIn = formData.checkIn ? `${formData.date}T${formData.checkIn}` : null;
-      attendanceData.checkOut = formData.checkOut ? `${formData.date}T${formData.checkOut}` : null;
+      // Use proper ISO string format for dates
+      if (formData.checkIn) {
+        attendanceData.checkIn = new Date(`${formData.date}T${formData.checkIn}`).toISOString();
+      }
+      if (formData.checkOut) {
+        attendanceData.checkOut = new Date(`${formData.date}T${formData.checkOut}`).toISOString();
+      }
       
       // Only include break times for Present status, NOT for Half Day
       if (formData.status === 'Present') {
-        attendanceData.breakStart = formData.breakStart ? `${formData.date}T${formData.breakStart}` : null;
-        attendanceData.breakEnd = formData.breakEnd ? `${formData.date}T${formData.breakEnd}` : null;
+        if (formData.breakStart) {
+          attendanceData.breakStart = new Date(`${formData.date}T${formData.breakStart}`).toISOString();
+        }
+        if (formData.breakEnd) {
+          attendanceData.breakEnd = new Date(`${formData.date}T${formData.breakEnd}`).toISOString();
+        }
       } else {
         // For Half Day, explicitly set break times to null
         attendanceData.breakStart = null;
@@ -74,7 +103,16 @@ const handleSubmit = async (e) => {
       attendanceData.breakEnd = null;
     }
 
- 
+    // FIXED: Ensure leaveDaysDeducted is properly set
+    if (formData.status === 'Half Day') {
+      attendanceData.leaveDaysDeducted = 0.5;
+    } else if (formData.status === 'Leave' || formData.status === 'Medical Leave' || formData.status === 'Casual Leave') {
+      attendanceData.leaveDaysDeducted = formData.isHalfDay ? 0.5 : 1;
+    } else {
+      attendanceData.leaveDaysDeducted = 0;
+    }
+
+    console.log('Sending attendance data:', attendanceData);
 
     const response = await employeeAPI.markAttendance(attendanceData);
     
@@ -84,15 +122,9 @@ const handleSubmit = async (e) => {
     if (response.data.leaveBalance) {
       const balance = response.data.leaveBalance;
       message += `\n\nUpdated Leave Balances:\n` +
-        `Medical: ${balance.medical} days remaining\n`;
-      
-      if (balance.isInProbation) {
-        message += `Monthly Leaves: ${balance.monthlyLeaves} remaining\n` +
-                   `Monthly Half Days: ${balance.monthlyHalfDays} remaining`;
-      } else {
-        message += `Annual Leaves: ${balance.annual} days remaining\n` +
-                   `Monthly Half Days: ${balance.monthlyHalfDays} remaining`;
-      }
+        `Annual: ${balance.annual} days remaining\n` +
+        `Medical: ${balance.medical} days remaining\n` +
+        `Casual: ${balance.casual} days remaining`;
     }
 
     alert(message);
@@ -105,28 +137,32 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
+
   const statusOptions = [
     { value: 'Present', label: 'Present', color: 'green' },
     { value: 'Half Day', label: 'Half Day', color: 'orange' },
-    { value: 'Leave', label: 'Leave', color: 'blue' },
+    { value: 'Leave', label: 'Annual Leave', color: 'blue' },
     { value: 'Medical Leave', label: 'Medical Leave', color: 'purple' },
-    { value: 'Absent', label: 'Absent', color: 'red' }
+    { value: 'Casual Leave', label: 'Casual Leave', color: 'teal' },
+    { value: 'Absent', label: 'Absent', color: 'red' },
+    { value: 'Factory Closure', label: 'Factory Closure', color: 'indigo' }
   ];
- 
-const handleStatusChange = (newStatus) => {
-  setFormData(prev => ({
-    ...prev,
-    status: newStatus,
-    // Reset times when switching to non-present status - use null instead of empty strings
-    checkIn: (newStatus === 'Present' || newStatus === 'Half Day') ? '08:00' : null,
-    checkOut: (newStatus === 'Present' || newStatus === 'Half Day') ? '17:00' : null,
-    // Only set break times for Present status
-    breakStart: newStatus === 'Present' ? '12:00' : null,
-    breakEnd: newStatus === 'Present' ? '13:00' : null,
-    isHalfDay: newStatus === 'Half Day',
-    isMedical: newStatus === 'Medical Leave' ? true : prev.isMedical
-  }));
-};
+
+  const handleStatusChange = (newStatus) => {
+    setFormData(prev => ({
+      ...prev,
+      status: newStatus,
+      // Reset times when switching to non-present status
+      checkIn: (newStatus === 'Present' || newStatus === 'Half Day') ? '08:00' : '',
+      checkOut: (newStatus === 'Present' || newStatus === 'Half Day') ? '17:00' : '',
+      // Only set break times for Present status
+      breakStart: newStatus === 'Present' ? '12:00' : '',
+      breakEnd: newStatus === 'Present' ? '13:00' : '',
+      isHalfDay: newStatus === 'Half Day',
+      isMedical: newStatus === 'Medical Leave',
+      isCasual: newStatus === 'Casual Leave'
+    }));
+  };
 
   // Get current month name for display
   const getCurrentMonthName = () => {
@@ -138,20 +174,28 @@ const handleStatusChange = (newStatus) => {
   };
 
   // Calculate used values from remaining balances
-  const getUsedMonthlyLeaves = () => {
-    return leaveBalances ? 2 - (leaveBalances.monthlyLeaves || 2) : 0;
-  };
-
-  const getUsedMonthlyHalfDays = () => {
-    return leaveBalances ? 2 - (leaveBalances.monthlyHalfDays || 2) : 0;
-  };
-
   const getUsedAnnual = () => {
-    return leaveBalances ? 21 - (leaveBalances.annual || 21) : 0;
+    return leaveBalances ? (leaveBalances.takenAnnual || 0) : 0;
   };
 
   const getUsedMedical = () => {
-    return leaveBalances ? 24 - (leaveBalances.medical || 24) : 0;
+    return leaveBalances ? (leaveBalances.takenMedical || 0) : 0;
+  };
+
+  const getUsedCasual = () => {
+    return leaveBalances ? (leaveBalances.takenCasual || 0) : 0;
+  };
+
+  const getAnnualEntitlement = () => {
+    return leaveBalances ? (leaveBalances.annualEntitlement || 14) : 14;
+  };
+
+  const getMedicalEntitlement = () => {
+    return leaveBalances ? (leaveBalances.medicalEntitlement || 7) : 7;
+  };
+
+  const getCasualEntitlement = () => {
+    return leaveBalances ? (leaveBalances.casualEntitlement || 7) : 7;
   };
 
   return (
@@ -165,19 +209,13 @@ const handleStatusChange = (newStatus) => {
           {leaveBalances && (
             <div className="mt-2 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
               <div className="font-semibold mb-1">Current Leave Balances ({getCurrentMonthName()}):</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>Medical: {leaveBalances.medical} days remaining (Used: {getUsedMedical()})</div>
-                {isInProbation ? (
-                  <>
-                    <div>Monthly Leaves: {leaveBalances.monthlyLeaves} remaining (Used: {getUsedMonthlyLeaves()})</div>
-                    <div>Half Days: {leaveBalances.monthlyHalfDays} remaining (Used: {getUsedMonthlyHalfDays()})</div>
-                  </>
-                ) : (
-                  <>
-                    <div>Annual: {leaveBalances.annual} days remaining (Used: {getUsedAnnual()})</div>
-                    <div>Half Days: {leaveBalances.monthlyHalfDays} remaining (Used: {getUsedMonthlyHalfDays()})</div>
-                  </>
-                )}
+              <div className="grid grid-cols-1 gap-2 text-xs">
+                <div>Annual: {leaveBalances.annual || 0} days remaining (Used: {getUsedAnnual()}/{getAnnualEntitlement()})</div>
+                <div>Medical: {leaveBalances.medical || 0} days remaining (Used: {getUsedMedical()}/{getMedicalEntitlement()})</div>
+                <div>Casual: {leaveBalances.casual || 0} days remaining (Used: {getUsedCasual()}/{getCasualEntitlement()})</div>
+              </div>
+              <div className="mt-2 text-xs text-green-600 font-medium">
+                ✓ Unified Leave Policy Applied
               </div>
             </div>
           )}
@@ -209,80 +247,70 @@ const handleStatusChange = (newStatus) => {
               ))}
             </select>
           </div>
-{(formData.status === 'Present' || formData.status === 'Half Day') && (
-  <>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Check In</label>
-        <input
-          type="time"
-          value={formData.checkIn || ''}
-          onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Check Out</label>
-        <input
-          type="time"
-          value={formData.checkOut || ''}
-          onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-      </div>
-    </div>
 
-    {/* Only show break times for Present status, not for Half Day */}
-    {formData.status === 'Present' && (
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Break Start</label>
-          <input
-            type="time"
-            value={formData.breakStart || ''}
-            onChange={(e) => setFormData({ ...formData, breakStart: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Break End</label>
-          <input
-            type="time"
-            value={formData.breakEnd || ''}
-            onChange={(e) => setFormData({ ...formData, breakEnd: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-          />
-        </div>
-      </div>
-    )}
-  </>
-)}
+          {(formData.status === 'Present' || formData.status === 'Half Day') && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Check In</label>
+                  <input
+                    type="time"
+                    value={formData.checkIn || ''}
+                    onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Check Out</label>
+                  <input
+                    type="time"
+                    value={formData.checkOut || ''}
+                    onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                </div>
+              </div>
 
-          {(formData.status === 'Leave' || formData.status === 'Half Day' || formData.status === 'Medical Leave') && (
+              {/* Only show break times for Present status, not for Half Day */}
+              {formData.status === 'Present' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break Start</label>
+                    <input
+                      type="time"
+                      value={formData.breakStart || ''}
+                      onChange={(e) => setFormData({ ...formData, breakStart: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break End</label>
+                    <input
+                      type="time"
+                      value={formData.breakEnd || ''}
+                      onChange={(e) => setFormData({ ...formData, breakEnd: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Leave type selection for Annual Leave */}
+          {(formData.status === 'Leave' || formData.status === 'Medical Leave' || formData.status === 'Casual Leave') && (
             <div className="flex space-x-4">
-              {formData.status !== 'Medical Leave' && (
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.isHalfDay}
-                    onChange={(e) => setFormData({ ...formData, isHalfDay: e.target.checked })}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-sm text-slate-700">Half Day</span>
-                </label>
-              )}
-              
-              {formData.status !== 'Medical Leave' && (
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.isMedical}
-                    onChange={(e) => setFormData({ ...formData, isMedical: e.target.checked })}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-sm text-slate-700">Medical Leave</span>
-                </label>
-              )}
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.isHalfDay}
+                  onChange={(e) => setFormData({ ...formData, isHalfDay: e.target.checked })}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-sm text-slate-700">
+                  Half Day ({formData.isHalfDay ? '0.5' : '1'} day deducted)
+                </span>
+              </label>
             </div>
           )}
 
@@ -294,54 +322,57 @@ const handleStatusChange = (newStatus) => {
                   💊 Medical Leave
                 </p>
                 <p className="text-xs text-purple-600 mt-1">
-                  Will count against medical leave balance (24 days per year)
+                  Will count against medical leave balance (7 days per year)
                 </p>
               </div>
             )}
             
-            {formData.status === 'Leave' && formData.isMedical && (
+            {formData.status === 'Casual Leave' && (
+              <div className="bg-teal-50 p-3 rounded-lg">
+                <p className="text-sm text-teal-800 font-medium">
+                  🎯 Casual Leave
+                </p>
+                <p className="text-xs text-teal-600 mt-1">
+                  Will count against casual leave balance (7 days per year)
+                </p>
+              </div>
+            )}
+            
+            {formData.status === 'Leave' && (
               <div className="bg-blue-50 p-3 rounded-lg">
                 <p className="text-sm text-blue-800 font-medium">
-                  💊 Medical Leave (Regular)
+                  📅 Annual Leave
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Will count as 1 medical leave against annual medical balance
+                  {formData.isHalfDay 
+                    ? 'Will count as 0.5 day against annual leave balance' 
+                    : 'Will count as 1 day against annual leave balance'
+                  }
                 </p>
               </div>
             )}
             
-            {formData.status === 'Leave' && !formData.isMedical && (
-              <div className="bg-orange-50 p-3 rounded-lg">
-                <p className="text-sm text-orange-800 font-medium">
-                  📅 Regular Leave
-                </p>
-                <p className="text-xs text-orange-600 mt-1">
-                  Will count against {isInProbation ? 'monthly probation leaves' : 'annual leaves'}
-                </p>
-              </div>
-            )}
-            
-            {formData.status === 'Half Day' && formData.isMedical && (
-              <div className="bg-purple-50 p-3 rounded-lg">
-                <p className="text-sm text-purple-800 font-medium">
-                  💊 Medical Half Day
-                </p>
-                <p className="text-xs text-purple-600 mt-1">
-                  Will count as 0.5 medical leave against annual medical balance
-                </p>
-              </div>
-            )}
-            
-            {formData.status === 'Half Day' && !formData.isMedical && (
+            {formData.status === 'Half Day' && (
               <div className="bg-yellow-50 p-3 rounded-lg">
                 <p className="text-sm text-yellow-800 font-medium">
-                  ⚠️ Regular Half Day
+                  ⚠️ Half Day
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">
-                  Will count against {isInProbation ? 'monthly probation half-days' : 'monthly half-days'}
+                  Will count as 0.5 day against annual leave balance
                 </p>
               </div>
             )}
+
+            {/* Unified Policy Notice */}
+            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+              <p className="text-sm text-green-800 font-medium flex items-center">
+                <CheckCircle size={16} className="mr-2" />
+                Unified Leave Policy
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                All employees receive: 14 days annual, 7 days medical, 7 days casual
+              </p>
+            </div>
           </div>
 
           <div>

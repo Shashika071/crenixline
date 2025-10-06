@@ -25,9 +25,28 @@ const factoryClosureSchema = new mongoose.Schema({
     type: String,
     enum: ['Scheduled', 'Active', 'Completed'],
     default: 'Active'
+  },
+  isActualClosure: {
+    type: Boolean,
+    default: true
+  },
+  allowWorkWithDoublePay: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
+});
+
+factoryClosureSchema.pre('save', function(next) {
+  if (this.reason === 'Holiday') {
+    this.isActualClosure = false;
+    this.allowWorkWithDoublePay = true;
+  } else {
+    this.isActualClosure = true;
+    this.allowWorkWithDoublePay = false;
+  }
+  next();
 });
 
 factoryClosureSchema.index({ date: 1 });

@@ -6,6 +6,7 @@ import FinanceManagement from '../FinanceManagement/FinanceManagement';
 import InventoryManagement from '../InventoryManagement/InventoryManagement';
 import OrderManagement from '../OrderManagement/OrderManagement';
 import ProductionTracking from '../ProductionTracking/ProductionTracking';
+import QR from '../QR/QR';
 import Reports from '../Reports/Reports';
 import Sidebar from '../Sidebar/Sidebar';
 import SupplierManagement from '../SupplierManagement/SupplierManagement';
@@ -25,6 +26,8 @@ const MainLayout = () => {
         return <InventoryManagement />;
       case 'suppliers':
         return <SupplierManagement />;
+      case 'qr':
+        return <QR />;
       case 'production':
         return <ProductionTracking />;
       case 'finance':

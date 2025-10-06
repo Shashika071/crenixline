@@ -14,7 +14,7 @@ import {
   getPayslipById,
   getPayslips,
   markAsPaid
-} from '../controllers/employeeController.js';
+} from '../controllers/payslipController.js';
 import {
   deleteSalaryAdvance,
   getPendingAdvances,

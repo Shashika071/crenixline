@@ -1,94 +1,75 @@
-import Employee from "../models/Employee.js";
-import Expense from "../models/Expense.js";
-import Order from "../models/Order.js";
-import Payment from "../models/Payment.js";
-import Production from "../models/Production.js";
+import Employee from '../models/Employee.js';
+import Material from '../models/Material.js';
+import Order from '../models/Order.js';
 
 export const getDashboardStats = async (req, res) => {
   try {
-    const [
-      totalOrders,
-      pendingOrders,
-      completedOrders,
-      totalEmployees,
-      activeEmployees,
-      lowStockMaterials,
-      recentPayments,
-      monthlyRevenue
-    ] = await Promise.all([
-      Order.countDocuments(),
-      Order.countDocuments({ status: 'Pending' }),
-      Order.countDocuments({ status: 'Completed' }),
-      Employee.countDocuments(),
-      Employee.countDocuments({ status: 'Active' }),
-      // Add low stock query when Material model is available
-      Payment.find().sort({ date: -1 }).limit(5).populate('orderId'),
-      Payment.aggregate([
-        { $match: { type: 'Inflow' } },
-        { 
-          $group: { 
-            _id: { 
-              year: { $year: '$date' }, 
-              month: { $month: '$date' } 
-            },
-            total: { $sum: '$amount' }
-          } 
-        },
-        { $sort: { '_id.year': -1, '_id.month': -1 } },
-        { $limit: 6 }
-      ])
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        totalOrders,
-        pendingOrders,
-        completedOrders,
-        totalEmployees,
-        activeEmployees,
-        lowStockCount: 0, // Placeholder
-        recentPayments,
-        monthlyRevenue
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const getOrderReport = async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    const matchStage = {};
+    console.log('Fetching dashboard stats...');
     
-    if (startDate || endDate) {
-      matchStage.createdAt = {};
-      if (startDate) matchStage.createdAt.$gte = new Date(startDate);
-      if (endDate) matchStage.createdAt.$lte = new Date(endDate);
-    }
-
-    const orders = await Order.find(matchStage)
-      .populate('agentId')
-      .sort({ createdAt: -1 });
-
-    const summary = await Order.aggregate([
-      { $match: matchStage },
-      { $group: { 
-        _id: '$status', 
-        count: { $sum: 1 },
-        totalQuantity: { $sum: '$quantity' }
-      }}
+    // Get total orders count
+    const totalOrders = await Order.countDocuments();
+    
+    // Get orders by status
+    const completedOrders = await Order.countDocuments({ status: 'Completed' });
+    const inProductionOrders = await Order.countDocuments({ status: 'In Production' });
+    const pendingOrders = await Order.countDocuments({ status: 'Pending' });
+    
+    // Get active employees count - FIXED: Count by status field
+    const activeEmployees = await Employee.countDocuments({ 
+      status: 'Active'  // Using the status field from your API response
+    });
+    
+ 
+    
+    // Calculate total revenue - FIXED: Multiply sellingPrice by quantity
+    const revenueResult = await Order.aggregate([
+      { 
+        $match: { status: 'Completed' } 
+      },
+      {
+        $group: {
+          _id: null,
+          total: { 
+            $sum: { 
+              $multiply: ['$sellingPrice', '$quantity'] 
+            } 
+          }
+        }
+      }
     ]);
-
+    
+    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+    
+ 
+    
+    // Get low stock items count
+    const lowStockItems = await Material.find({
+      $expr: { $lte: ['$availableQty', '$reorderLevel'] },
+      isActive: true
+    });
+    
+    const stats = {
+      totalOrders,
+      completedOrders,
+      inProductionOrders,
+      pendingOrders,
+      activeEmployees,
+      totalRevenue,
+      lowStockCount: lowStockItems.length
+    };
+    
+  
+    
     res.json({
       success: true,
-      data: {
-        orders,
-        summary
-      }
+      data: stats
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard statistics',
+      error: error.message
+    });
   }
 };

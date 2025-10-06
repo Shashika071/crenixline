@@ -1,6 +1,6 @@
 // components/modals/LeaveBalancesModal.jsx
 
-import { AlertTriangle, Calendar, CheckCircle, Clock, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle, Clock, Heart, RefreshCw, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { employeeAPI } from '../../services/api';
@@ -9,7 +9,6 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
   const [leaveBalances, setLeaveBalances] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
 
   useEffect(() => {
     fetchLeaveBalances();
@@ -19,6 +18,7 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
     try {
       setLoading(true);
       const response = await employeeAPI.getLeaveBalances(employee._id);
+      console.log('Leave balances API response:', response.data); // Debug log
       setLeaveBalances(response.data.data);
     } catch (error) {
       console.error('Error fetching leave balances:', error);
@@ -34,34 +34,78 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
     await fetchLeaveBalances();
   };
 
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  // FIX: Proper calculation functions
-  const getUsedMonthlyLeaves = () => {
-    if (!leaveBalances) return 0;
-    return leaveBalances.isInProbation ? (2 - leaveBalances.monthlyLeaves) : 0;
+  // Calculate pro-rated annual leave based on joining month
+  const calculateAnnualEntitlement = () => {
+    if (!employee?.joinDate) return 14;
+    
+    const joinDate = new Date(employee.joinDate);
+    const currentYear = new Date().getFullYear();
+    const joinYear = joinDate.getFullYear();
+    const joinMonth = joinDate.getMonth();
+    
+    if (joinYear < currentYear) return 14;
+    
+    if (joinMonth <= 2) return 14;
+    else if (joinMonth <= 5) return 10;
+    else if (joinMonth <= 8) return 7;
+    else return 4;
   };
 
-  const getUsedMonthlyHalfDays = () => {
-    if (!leaveBalances) return 0;
-    return 2 - leaveBalances.monthlyHalfDays;
-  };
-
+  // FIXED: Proper calculation functions that read from the correct API response structure
   const getUsedAnnual = () => {
-    if (!leaveBalances) return 0;
-    return leaveBalances.isInProbation ? 0 : (21 - leaveBalances.annual);
+    if (!leaveBalances?.leaveHistory?.[0]) return 0;
+    return leaveBalances.leaveHistory[0].takenAnnual || 0;
   };
 
   const getUsedMedical = () => {
-    if (!leaveBalances) return 0;
-    return 24 - leaveBalances.medical;
+    if (!leaveBalances?.leaveHistory?.[0]) return 0;
+    return leaveBalances.leaveHistory[0].takenMedical || 0;
   };
 
-  // FIX: Check if selected month is current month for "resets next month" message
-  const isCurrentMonth = selectedMonth === new Date().getMonth();
+  const getUsedCasual = () => {
+    if (!leaveBalances?.leaveHistory?.[0]) return 0;
+    return leaveBalances.leaveHistory[0].takenCasual || 0;
+  };
+
+  const getAnnualEntitlement = () => {
+    if (!leaveBalances?.leaveHistory?.[0]) return calculateAnnualEntitlement();
+    return leaveBalances.leaveHistory[0].annualEntitlement || calculateAnnualEntitlement();
+  };
+
+  const getMedicalEntitlement = () => {
+    if (!leaveBalances?.leaveHistory?.[0]) return 7;
+    return leaveBalances.leaveHistory[0].medicalEntitlement || 7;
+  };
+
+  const getCasualEntitlement = () => {
+    if (!leaveBalances?.leaveHistory?.[0]) return 7;
+    return leaveBalances.leaveHistory[0].casualEntitlement || 7;
+  };
+
+  // FIXED: Get current balances from the main leaveBalances object
+  const getCurrentAnnualBalance = () => {
+    if (!leaveBalances?.leaveBalances) return calculateAnnualEntitlement();
+    return leaveBalances.leaveBalances.annual || (getAnnualEntitlement() - getUsedAnnual());
+  };
+
+  const getCurrentMedicalBalance = () => {
+    if (!leaveBalances?.leaveBalances) return 7;
+    return leaveBalances.leaveBalances.medical || (getMedicalEntitlement() - getUsedMedical());
+  };
+
+  const getCurrentCasualBalance = () => {
+    if (!leaveBalances?.leaveBalances) return 7;
+    return leaveBalances.leaveBalances.casual || (getCasualEntitlement() - getUsedCasual());
+  };
+
+  // Check if employee is in first year
+  const isFirstYearEmployee = () => {
+    if (!employee?.joinDate) return false;
+    const joinDate = new Date(employee.joinDate);
+    const currentYear = new Date().getFullYear();
+    const joinYear = joinDate.getFullYear();
+    return joinYear === currentYear;
+  };
 
   if (loading) {
     return (
@@ -95,18 +139,30 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
     );
   }
 
-  const isInProbation = leaveBalances.isInProbation || false;
+  // Debug information
+  console.log('Current leave balances state:', leaveBalances);
+  console.log('Calculated values:', {
+    annual: {
+      current: getCurrentAnnualBalance(),
+      used: getUsedAnnual(),
+      entitlement: getAnnualEntitlement()
+    },
+    medical: {
+      current: getCurrentMedicalBalance(),
+      used: getUsedMedical(),
+      entitlement: getMedicalEntitlement()
+    },
+    casual: {
+      current: getCurrentCasualBalance(),
+      used: getUsedCasual(),
+      entitlement: getCasualEntitlement()
+    }
+  });
 
-  // FIX: Proper balance card component with correct calculations
-  const LeaveBalanceCard = ({ title, used, total, color, icon, description, isMonthly = false }) => {
-    const remaining = Math.max(0, total - used);
+  // FIXED: Leave balance card component
+  const LeaveBalanceCard = ({ title, used, total, remaining, color, icon, description, isProRated = false }) => {
     const percentage = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     
-    // FIX: Show correct display values
-    const displayUsed = used;
-    const displayRemaining = remaining;
-    const displayTotal = total;
-
     return (
       <div className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between mb-2">
@@ -114,7 +170,7 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
           <div className="flex items-center space-x-2">
             {icon}
             <span className="text-sm font-medium" style={{ color }}>
-              {displayRemaining} / {displayTotal}
+              {remaining} remaining
             </span>
           </div>
         </div>
@@ -126,22 +182,24 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
           ></div>
         </div>
         <div className="flex justify-between text-xs text-slate-500 mt-1">
-          <span>Used: {displayUsed}</span>
-          <span>Remaining: {displayRemaining}</span>
+          <span>Used: {used}/{total}</span>
+          <span>{Math.round(percentage)}% used</span>
         </div>
-        {isMonthly && isCurrentMonth && (
-          <div className="text-xs text-green-600 mt-1 font-medium">
-            ✓ Resets next month
-          </div>
-        )}
-        {isMonthly && !isCurrentMonth && (
+        {isProRated && (
           <div className="text-xs text-orange-600 mt-1 font-medium">
-            ⚠️ Historical data
+            ⚠️ Pro-rated (first year)
           </div>
         )}
       </div>
     );
   };
+
+  const annualEntitlement = getAnnualEntitlement();
+  const medicalEntitlement = getMedicalEntitlement();
+  const casualEntitlement = getCasualEntitlement();
+  const currentAnnual = getCurrentAnnualBalance();
+  const currentMedical = getCurrentMedicalBalance();
+  const currentCasual = getCurrentCasualBalance();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -170,102 +228,100 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
             </div>
           </div>
 
-          {/* Month Selector */}
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              View balances for:
-            </label>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            >
-              {monthNames.map((month, index) => (
-                <option key={index} value={index}>
-                  {month} {index === new Date().getMonth() ? '(Current)' : ''}
-                </option>
-              ))}
-            </select>
+          {/* Unified Policy Notice */}
+          <div className="mt-2 flex items-center space-x-1 text-green-600 text-sm bg-green-50 p-2 rounded">
+            <CheckCircle size={14} />
+            <span>Unified Leave Policy Applied</span>
           </div>
 
-          {isInProbation && (
+          {isFirstYearEmployee() && (
             <div className="mt-2 flex items-center space-x-1 text-orange-600 text-sm bg-orange-50 p-2 rounded">
               <AlertTriangle size={14} />
-              <span>Employee is in probation period</span>
+              <span>First-year employee (pro-rated annual leave)</span>
             </div>
           )}
         </div>
 
         {/* Scrollable Content */}
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
-          {/* Medical Leaves - Available for all employees */}
+          {/* Annual Leaves */}
+          <LeaveBalanceCard
+            title="Annual Leaves"
+            used={getUsedAnnual()}
+            total={annualEntitlement}
+            remaining={currentAnnual}
+            color="#10b981"
+            icon={<CheckCircle size={16} className="text-green-500" />}
+            description={`${annualEntitlement} days per year`}
+            isProRated={isFirstYearEmployee()}
+          />
+
+          {/* Medical Leaves */}
           <LeaveBalanceCard
             title="Medical Leaves"
             used={getUsedMedical()}
-            total={24}
+            total={medicalEntitlement}
+            remaining={currentMedical}
             color="#3b82f6"
             icon={<Calendar size={16} className="text-blue-500" />}
-            description="24 days per year (available from day 1)"
+            description="7 days per year"
           />
 
-          {isInProbation ? (
-            <>
-              {/* Probation: Monthly Full Leaves */}
-              <LeaveBalanceCard
-                title="Monthly Full Leaves"
-                used={getUsedMonthlyLeaves()}
-                total={2}
-                color="#f59e0b"
-                icon={<AlertTriangle size={16} className="text-orange-500" />}
-                description="2 full leaves per month during probation"
-                isMonthly={true}
-              />
-              
-              {/* Probation: Monthly Half Days */}
-              <LeaveBalanceCard
-                title="Monthly Half Days"
-                used={getUsedMonthlyHalfDays()}
-                total={2}
-                color="#8b5cf6"
-                icon={<Clock size={16} className="text-purple-500" />}
-                description="2 half days per month during probation"
-                isMonthly={true}
-              />
-            </>
-          ) : (
-            <>
-              {/* Confirmed: Annual Leaves */}
-              <LeaveBalanceCard
-                title="Annual Leaves"
-                used={getUsedAnnual()}
-                total={21}
-                color="#10b981"
-                icon={<CheckCircle size={16} className="text-green-500" />}
-                description="21 days per year"
-              />
-              
-              {/* Confirmed: Monthly Half Days */}
-              <LeaveBalanceCard
-                title="Monthly Half Days"
-                used={getUsedMonthlyHalfDays()}
-                total={2}
-                color="#8b5cf6"
-                icon={<Clock size={16} className="text-purple-500" />}
-                description="2 half days per month"
-                isMonthly={true}
-              />
-            </>
+          {/* Casual Leaves */}
+          <LeaveBalanceCard
+            title="Casual Leaves"
+            used={getUsedCasual()}
+            total={casualEntitlement}
+            remaining={currentCasual}
+            color="#8b5cf6"
+            icon={<Clock size={16} className="text-purple-500" />}
+            description="7 days per year"
+          />
+
+          {/* Current Balance Summary */}
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h4 className="font-medium text-slate-800 mb-3 text-sm">Current Balance Summary</h4>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-lg font-bold text-green-600">{currentAnnual}</div>
+                <div className="text-xs text-slate-600">Annual</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold text-blue-600">{currentMedical}</div>
+                <div className="text-xs text-slate-600">Medical</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold text-purple-600">{currentCasual}</div>
+                <div className="text-xs text-slate-600">Casual</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Maternity Leave Info (for female employees) */}
+          {employee.gender === 'Female' && (
+            <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <Heart size={16} className="text-pink-500" />
+                <span className="font-semibold text-pink-700">Maternity Leave</span>
+              </div>
+              <div className="text-sm text-pink-600 space-y-1">
+                <p>• 42 days standard maternity leave</p>
+                <p>• 84 days for special medical cases</p>
+                <p>• Available when needed</p>
+              </div>
+            </div>
           )}
 
-          {/* Debug Information (remove in production) */}
-          <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-            <div className="text-xs font-mono text-slate-600">
-              <div>Debug Info:</div>
-              <div>Medical: {leaveBalances.medical}</div>
-              <div>Annual: {leaveBalances.annual}</div>
-              <div>Monthly Leaves: {leaveBalances.monthlyLeaves}</div>
-              <div>Monthly Half Days: {leaveBalances.monthlyHalfDays}</div>
-              <div>Probation: {isInProbation ? 'Yes' : 'No'}</div>
+          {/* Policy Information */}
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-blue-800 mb-2 text-sm">Leave Policy Notes:</h4>
+            <div className="text-xs text-blue-700 space-y-1">
+              <p>• All employees receive same leave entitlements</p>
+              <p>• Half days deduct 0.5 from annual leave</p>
+              <p>• Unpaid leave when balances exhausted</p>
+              {isFirstYearEmployee() && (
+                <p>• Annual leave pro-rated based on joining month</p>
+              )}
             </div>
           </div>
         </div>
@@ -287,4 +343,4 @@ const LeaveBalancesModal = ({ employee, onClose }) => {
   );
 };
 
-export default LeaveBalancesModal;  
+export default LeaveBalancesModal;

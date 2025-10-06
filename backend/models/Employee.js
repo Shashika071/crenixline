@@ -1,5 +1,3 @@
-// models/Employee.js
-
 import mongoose from "mongoose";
 
 const medicalLeaveSchema = new mongoose.Schema({
@@ -38,6 +36,30 @@ const medicalLeaveSchema = new mongoose.Schema({
   adminNotes: String
 });
 
+const maternityLeaveSchema = new mongoose.Schema({
+  startDate: {
+    type: Date,
+    required: true
+  },
+  expectedDuration: {
+    type: Number,
+    default: 42,
+    enum: [42, 84]
+  },
+  medicalReason: String,
+  status: {
+    type: String,
+    enum: ['Pending', 'Approved', 'Rejected'],
+    default: 'Pending'
+  },
+  appliedDate: {
+    type: Date,
+    default: Date.now
+  },
+  processedDate: Date,
+  adminNotes: String
+});
+
 const attendanceSchema = new mongoose.Schema({
   date: {
     type: Date,
@@ -55,16 +77,38 @@ const attendanceSchema = new mongoose.Schema({
   overtimeHours: Number,
   status: {
     type: String,
-    enum: ['Present', 'Absent', 'Half Day', 'Leave', 'Medical Leave', 'Factory Closure', 'No Pay'],
+    enum: ['Present', 'Absent', 'Half Day', 'Leave', 'Medical Leave', 'Casual Leave', 'Factory Closure', 'No Pay', 'Holiday Work', 'Sunday Work'],
     default: 'Present'
   },
   notes: String,
   isHalfDay: Boolean,
   isMedical: Boolean,
+  isCasual: Boolean,
   isFactoryClosure: Boolean,
+  isSundayWork: {
+    type: Boolean,
+    default: false
+  },
+  isHolidayWork: {
+    type: Boolean,
+    default: false
+  },
+  isDoublePay: {
+    type: Boolean,
+    default: false
+  },
   isPaidLeave: {
     type: Boolean,
     default: true
+  },
+  leaveType: {
+    type: String,
+    enum: ['annual', 'medical', 'casual', 'maternity', 'unpaid'],
+    default: null
+  },
+  leaveDaysDeducted: {
+    type: Number,
+    default: 0
   }
 });
 
@@ -96,11 +140,26 @@ const bankDetailsSchema = new mongoose.Schema({
 });
 
 const employeeSchema = new mongoose.Schema({
-  // EPF Fields - Fixed with proper unique constraint
+  employeeId: {
+    type: String,
+    unique: true,
+    immutable: true,
+    required: true,
+    validate: {
+      validator: function(v) {
+        return /^CL\/\d{2}\/[A-Z]{2}\d{4}(-\d+)?$/.test(v);
+      },
+      message: 'Employee ID must be in format CL/YY/AB1234'
+    }
+  },
+  profileImage: {
+    type: String,
+    default: null
+  },
   epfNumber: {
     type: String,
     unique: true,
-    sparse: true,  // This allows multiple null values
+    sparse: true,
     trim: true,
     default: undefined,
   },
@@ -108,8 +167,6 @@ const employeeSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  
-  // Salary and Rates
   salary: {
     type: Number,
     required: true
@@ -122,8 +179,10 @@ const employeeSchema = new mongoose.Schema({
     type: Number, 
     default: 0
   },
-  
-  // Personal Information
+  dailyRate: {
+    type: Number,
+    default: 0
+  },
   name: {
     type: String,
     required: true,
@@ -144,12 +203,15 @@ const employeeSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  gender: {
+    type: String,
+    enum: ['Male', 'Female'],
+    required: true
+  },
   role: {
     type: String,
     required: true
   },
-  
-  // Employment Details
   joinDate: {
     type: Date,
     default: Date.now
@@ -167,18 +229,12 @@ const employeeSchema = new mongoose.Schema({
     enum: ['Active', 'Inactive', 'On Leave'],
     default: 'Active'
   },
-  
-  // Financial Details
   bankDetails: bankDetailsSchema,
-  
-  // Emergency Contact
   emergencyContact: {
     name: String,
     relationship: String,
     phone: String
   },
-  
-  // Work Schedule
   workingSchedule: {
     monday: { start: String, end: String, working: Boolean },
     tuesday: { start: String, end: String, working: Boolean },
@@ -186,32 +242,38 @@ const employeeSchema = new mongoose.Schema({
     thursday: { start: String, end: String, working: Boolean },
     friday: { start: String, end: String, working: Boolean },
     saturday: { start: String, end: String, working: Boolean },
-    sunday: { start: String, end: String, working: Boolean }
+    sunday: { start: String, end: String, working: Boolean } 
   },
-  
-  // Attendance and Leaves
   attendance: [attendanceSchema],
   medicalLeaves: [medicalLeaveSchema],
+  maternityLeaves: [maternityLeaveSchema],
   leaveBalances: {
-    annual: { type: Number, default: 0 },
-    medical: { type: Number, default: 24 },
-    probation: { type: Number, default: 2 },
-    halfDays: { type: Number, default: 0 }
+    annual: { type: Number, default: 14 },
+    medical: { type: Number, default: 7 },
+    casual: { type: Number, default: 7 },
+    maternity: { type: Number, default: 42 }
   },
   leaveHistory: [{
     year: Number,
     takenAnnual: { type: Number, default: 0 },
     takenMedical: { type: Number, default: 0 },
-    monthlyLeaves: { type: [Number], default: Array(12).fill(0) },
-    monthlyHalfDays: { type: [Number], default: Array(12).fill(0) }
-  }]
+    takenCasual: { type: Number, default: 0 },
+    monthlyLeaves: { type: [Number], default: Array(12).fill(0) }
+  }],
+  sundayWorkSummary: {
+    totalDays: { type: Number, default: 0 },
+    totalHours: { type: Number, default: 0 },
+    lastUpdated: { type: Date, default: Date.now }
+  },
+  holidayWorkSummary: {
+    totalDays: { type: Number, default: 0 },
+    totalHours: { type: Number, default: 0 },
+    lastUpdated: { type: Date, default: Date.now }
+  }
 }, {
   timestamps: true
 });
-
-// Helper function to generate unique EPF-like identifier
 const generateEPFIdentifier = async function(name, EmployeeModel) {
-  // Get first 2 letters of the name (uppercase)
   const namePrefix = name.substring(0, 2).toUpperCase();
   
   let isUnique = false;
@@ -220,11 +282,9 @@ const generateEPFIdentifier = async function(name, EmployeeModel) {
   const maxAttempts = 10;
   
   while (!isUnique && attempts < maxAttempts) {
-    // Generate random number (6 digits)
     const randomNum = Math.floor(100000 + Math.random() * 900000);
     generatedEPF = `${namePrefix}${randomNum}`;
     
-    // Check if this EPF number already exists
     const existingEmployee = await EmployeeModel.findOne({ epfNumber: generatedEPF });
     if (!existingEmployee) {
       isUnique = true;
@@ -233,7 +293,6 @@ const generateEPFIdentifier = async function(name, EmployeeModel) {
     attempts++;
   }
   
-  // If still not unique after max attempts, add timestamp
   if (!isUnique) {
     const timestamp = Date.now().toString().slice(-6);
     generatedEPF = `${namePrefix}${timestamp}`;
@@ -242,28 +301,23 @@ const generateEPFIdentifier = async function(name, EmployeeModel) {
   return generatedEPF;
 };
 
-// Updated pre-save middleware with EPF identifier generation
+// UPDATED: Pre-save middleware with holiday work tracking
 employeeSchema.pre('save', async function(next) {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  // Handle EPF number based on hasEPF flag
   if (!this.hasEPF) {
-    // Generate unique EPF-like identifier when hasEPF is false
-    if (!this.epfNumber || this.epfNumber === '') {
+    if (!this.epfNumber || this.epfNumber === '' || this.epfNumber === undefined) {
       this.epfNumber = await generateEPFIdentifier(this.name, this.constructor);
     }
   } else {
-    // hasEPF is true - validate the provided EPF number
     if (this.epfNumber && this.epfNumber.trim() === '') {
       this.epfNumber = undefined;
     } else if (this.epfNumber) {
       this.epfNumber = this.epfNumber.trim();
     }
-    // If hasEPF is true but no epfNumber provided, leave it as undefined
   }
 
-  // Only recalc probationEndDate if employmentStatus or joinDate changed
   if (this.isModified('employmentStatus') || this.isModified('joinDate')) {
     if (this.employmentStatus === 'Probation') {
       this.probationEndDate = new Date(this.joinDate);
@@ -273,50 +327,53 @@ employeeSchema.pre('save', async function(next) {
     }
   }
 
-  // Initialize leave history for current year if not present with proper structure
+  if (this.isModified('salary') && this.salary > 0) {
+    const monthlyHours = 8 * 26;
+    this.hourlyRate = parseFloat((this.salary / monthlyHours).toFixed(2));
+    this.dailyRate = parseFloat((this.salary / 26).toFixed(2));
+    this.overtimeRate = parseFloat((this.hourlyRate * 1.5).toFixed(2));
+  }
+
   let leaveHistory = this.leaveHistory.find(l => l.year === currentYear);
   if (!leaveHistory) {
     leaveHistory = {
       year: currentYear,
       takenAnnual: 0,
       takenMedical: 0,
-      monthlyLeaves: Array(12).fill(0),
-      monthlyHalfDays: Array(12).fill(0)
+      takenCasual: 0,
+      monthlyLeaves: Array(12).fill(0)
     };
     this.leaveHistory.push(leaveHistory);
   } else {
-    // Ensure existing leave history has the proper structure
     if (!leaveHistory.monthlyLeaves || leaveHistory.monthlyLeaves.length !== 12) {
       leaveHistory.monthlyLeaves = Array(12).fill(0);
     }
-    if (!leaveHistory.monthlyHalfDays || leaveHistory.monthlyHalfDays.length !== 12) {
-      leaveHistory.monthlyHalfDays = Array(12).fill(0);
-    }
   }
 
-  // Update leave balances if employmentStatus changed to Confirmed
-  if (this.isModified('employmentStatus') && this.employmentStatus === 'Confirmed' && this.leaveBalances.annual === 0) {
-    this.leaveBalances.annual = 21;
-    this.leaveBalances.halfDays = 0;
-    this.leaveBalances.probation = 0;
-  }
-
-  // Calculate hourly rate based on salary (assuming 8 hours/day, 26 days/month)
-  if (this.isModified('salary') && this.salary > 0) {
-    const monthlyHours = 8 * 26; // 8 hours/day * 26 working days
-    this.hourlyRate = parseFloat((this.salary / monthlyHours).toFixed(2));
+  // UPDATED: Track both Sunday AND Holiday work
+  if (this.isModified('attendance')) {
+    const sundayWorkRecords = this.attendance.filter(record => record.isSundayWork);
+    const holidayWorkRecords = this.attendance.filter(record => record.isHolidayWork);
     
-    // Overtime rate is typically 1.5x hourly rate
-    this.overtimeRate = parseFloat((this.hourlyRate * 1.5).toFixed(2));
+    this.sundayWorkSummary = {
+      totalDays: sundayWorkRecords.length,
+      totalHours: sundayWorkRecords.reduce((sum, record) => sum + (record.totalHours || 0), 0),
+      lastUpdated: new Date()
+    };
+    
+    this.holidayWorkSummary = {
+      totalDays: holidayWorkRecords.length,
+      totalHours: holidayWorkRecords.reduce((sum, record) => sum + (record.totalHours || 0), 0),
+      lastUpdated: new Date()
+    };
   }
 
   next();
 });
 
-// Static method to check for duplicate EPF numbers
 employeeSchema.statics.checkDuplicateEPF = async function(epfNumber, excludeId = null) {
   if (!epfNumber || epfNumber.trim() === '') {
-    return null; // No check needed for null/empty EPF numbers
+    return null;
   }
   
   const query = { epfNumber: epfNumber.trim() };
@@ -327,10 +384,9 @@ employeeSchema.statics.checkDuplicateEPF = async function(epfNumber, excludeId =
   return await this.findOne(query);
 };
 
-// Instance method to validate EPF uniqueness
 employeeSchema.methods.isEPFUnique = async function() {
   if (!this.epfNumber || this.epfNumber.trim() === '') {
-    return true; // Null/empty EPF numbers are always considered unique
+    return true;
   }
   
   const existingEmployee = await this.constructor.findOne({
@@ -341,15 +397,77 @@ employeeSchema.methods.isEPFUnique = async function() {
   return !existingEmployee;
 };
 
+employeeSchema.methods.calculateSundayWorkPayment = function(month, year) {
+  const attendanceRecords = Array.isArray(this.attendance) ? this.attendance : [];
+
+  const sundayWorkRecords = attendanceRecords.filter(record => {
+    const recordDate = new Date(record.date);
+    return record.isSundayWork && 
+           recordDate.getMonth() === month && 
+           recordDate.getFullYear() === year;
+  });
+
+  let totalPayment = 0;
+  const sundayWorkDetails = sundayWorkRecords.map(record => {
+    const hoursWorked = record.totalHours || 0;
+    const payment = hoursWorked * this.hourlyRate * 2;
+    totalPayment += payment;
+    
+    return {
+      date: record.date,
+      hoursWorked: hoursWorked,
+      payment: parseFloat(payment.toFixed(2))
+    };
+  });
+
+  return {
+    totalPayment: parseFloat(totalPayment.toFixed(2)),
+    totalHours: sundayWorkRecords.reduce((sum, record) => sum + (record.totalHours || 0), 0),
+    details: sundayWorkDetails
+  };
+};
+
+// ADDED: Method to calculate Holiday work payment
+employeeSchema.methods.calculateHolidayWorkPayment = function(month, year) {
+  const attendanceRecords = Array.isArray(this.attendance) ? this.attendance : [];
+
+  const holidayWorkRecords = attendanceRecords.filter(record => {
+    const recordDate = new Date(record.date);
+    return record.isHolidayWork && 
+           recordDate.getMonth() === month && 
+           recordDate.getFullYear() === year;
+  });
+
+  let totalPayment = 0;
+  const holidayWorkDetails = holidayWorkRecords.map(record => {
+    const hoursWorked = record.totalHours || 0;
+    const payment = hoursWorked * this.hourlyRate * 2; // Double pay for holiday work
+    totalPayment += payment;
+    
+    return {
+      date: record.date,
+      hoursWorked: hoursWorked,
+      payment: parseFloat(payment.toFixed(2))
+    };
+  });
+
+  return {
+    totalPayment: parseFloat(totalPayment.toFixed(2)),
+    totalHours: holidayWorkRecords.reduce((sum, record) => sum + (record.totalHours || 0), 0),
+    details: holidayWorkDetails
+  };
+};
+
 // Indexes
 employeeSchema.index({ nic: 1 });
 employeeSchema.index({ role: 1 });
 employeeSchema.index({ status: 1 });
 employeeSchema.index({ 'attendance.date': 1 });
+employeeSchema.index({ 'attendance.isSundayWork': 1 });
+employeeSchema.index({ 'attendance.isHolidayWork': 1 }); // ADDED: Index for holiday work queries
+employeeSchema.index({ epfNumber: 1 });
 employeeSchema.index({ probationEndDate: 1 });
-employeeSchema.index({ epfNumber: 1 }); // Sparse unique index is defined in schema
 
-// Virtual for formatted EPF display
 employeeSchema.virtual('formattedEPF').get(function() {
   if (!this.hasEPF) {
     return `${this.epfNumber} (No EPF)`;
@@ -357,7 +475,6 @@ employeeSchema.virtual('formattedEPF').get(function() {
   return this.epfNumber || 'Not Provided';
 });
 
-// Virtual for employment duration
 employeeSchema.virtual('employmentDuration').get(function() {
   const joinDate = this.joinDate;
   const today = new Date();
@@ -372,7 +489,19 @@ employeeSchema.virtual('employmentDuration').get(function() {
   return `${months} month${months > 1 ? 's' : ''}`;
 });
 
-// Transform output to include virtuals
+employeeSchema.virtual('currentMonthSundayWork').get(function() {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  return this.calculateSundayWorkPayment(currentMonth, currentYear);
+});
+
+// ADDED: Virtual for current month holiday work summary
+employeeSchema.virtual('currentMonthHolidayWork').get(function() {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  return this.calculateHolidayWorkPayment(currentMonth, currentYear);
+});
+
 employeeSchema.set('toJSON', { virtuals: true });
 employeeSchema.set('toObject', { virtuals: true });
 

@@ -103,12 +103,34 @@ export const updateMaterialStock = async (req, res) => {
 
 export const getLowStockMaterials = async (req, res) => {
   try {
-    const materials = await Material.find({
-      $expr: { $lte: ['$availableQty', '$reorderLevel'] }
-    }).populate('supplierId');
+    console.log('Fetching low stock materials with simple query...');
+    
+    // Get all active materials
+    const allMaterials = await Material.find({ isActive: true }).populate('supplierId');
+    
+    // Filter for low stock manually (most reliable method)
+    const lowStockMaterials = allMaterials.filter(material => {
+      const isLowStock = material.availableQty <= material.reorderLevel;
+      if (isLowStock) {
+        console.log(`Low Stock: ${material.name} - ${material.availableQty}/${material.reorderLevel}`);
+      }
+      return isLowStock;
+    });
 
-    res.json({ success: true, data: materials });
+    console.log(`Found ${lowStockMaterials.length} low stock items`);
+
+    res.json({ 
+      success: true, 
+      data: lowStockMaterials,
+      count: lowStockMaterials.length,
+      message: `Found ${lowStockMaterials.length} low stock items`
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Error in getLowStockMaterials:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch low stock materials',
+      error: error.message
+    });
   }
 };

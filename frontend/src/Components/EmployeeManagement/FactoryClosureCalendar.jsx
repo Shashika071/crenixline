@@ -1,6 +1,6 @@
 // components/FactoryClosureCalendar.jsx
 
-import { Calendar as CalendarIcon, Factory, Sun, X } from 'lucide-react';
+import { AlertTriangle, Calendar as CalendarIcon, Factory, Sun, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { employeeAPI } from '../../services/api';
@@ -44,32 +44,50 @@ const FactoryClosureCalendar = ({ onClose }) => {
   const isSunday = (date) => {
     return date.getDay() === 0; // 0 = Sunday
   };
+  
   const formatDate = (d) => d.toLocaleDateString('en-CA'); 
-  // Get closure type for a day
- const getClosureType = (date) => {
-  const dateString = formatDate(date);
+  
+  // Get closure type for a day - UPDATED for holiday vs factory closure
+  const getClosureType = (date) => {
+    const dateString = formatDate(date);
 
-  const apiClosures = closures.filter(
-    (closure) => formatDate(new Date(closure.date)) === dateString
-  );
+    const apiClosures = closures.filter(
+      (closure) => formatDate(new Date(closure.date)) === dateString
+    );
 
     if (apiClosures.length > 0) {
-      return {
-        type: 'factory_closure',
-        closures: apiClosures,
-        label: 'Factory Closure'
-      };
+      // NEW: Distinguish between holiday and factory closure
+      const holidayClosures = apiClosures.filter(closure => !closure.isActualClosure);
+      const factoryClosures = apiClosures.filter(closure => closure.isActualClosure);
+      
+      if (holidayClosures.length > 0) {
+        return {
+          type: 'holiday',
+          closures: holidayClosures,
+          label: 'Holiday (Work with Double Pay)',
+          allowWork: true
+        };
+      } else if (factoryClosures.length > 0) {
+        return {
+          type: 'factory_closure',
+          closures: factoryClosures,
+          label: 'Factory Closure (No Work)',
+          allowWork: false
+        };
+      }
     } else if (isSunday(date)) {
       return {
         type: 'sunday',
         closures: [],
-        label: 'Sunday Closure'
+        label: 'Sunday (Work with Double Pay)',
+        allowWork: true
       };
     } else {
       return {
         type: 'open',
         closures: [],
-        label: 'Open Day'
+        label: 'Open Day',
+        allowWork: true
       };
     }
   };
@@ -125,13 +143,15 @@ const FactoryClosureCalendar = ({ onClose }) => {
 
   const days = getDaysInMonth();
 
-  // Get background color based on closure type
+  // Get background color based on closure type - UPDATED
   const getDayBackgroundColor = (day) => {
     if (!day) return 'bg-gray-50';
     
     switch (day.type) {
       case 'factory_closure':
         return 'bg-red-100 border-red-300';
+      case 'holiday':
+        return 'bg-purple-100 border-purple-300'; // NEW: Purple for holidays
       case 'sunday':
         return 'bg-orange-100 border-orange-300';
       default:
@@ -139,13 +159,15 @@ const FactoryClosureCalendar = ({ onClose }) => {
     }
   };
 
-  // Get text color based on closure type
+  // Get text color based on closure type - UPDATED
   const getDayTextColor = (day) => {
     if (!day) return 'text-gray-400';
     
     switch (day.type) {
       case 'factory_closure':
         return 'text-red-800';
+      case 'holiday':
+        return 'text-purple-800'; // NEW: Purple for holidays
       case 'sunday':
         return 'text-orange-800';
       default:
@@ -237,6 +259,15 @@ const FactoryClosureCalendar = ({ onClose }) => {
                             </div>
                           )}
                           
+                          {/* NEW: Holiday indicator */}
+                          {day.type === 'holiday' && (
+                            <div className="text-[10px] bg-purple-200 text-purple-800 rounded px-1 py-0.5 truncate leading-tight">
+                              <AlertTriangle size={8} className="inline mr-0.5" />
+                              Holiday
+                              {day.closures.length > 1 && ` +${day.closures.length - 1}`}
+                            </div>
+                          )}
+                          
                           {day.type === 'sunday' && (
                             <div className="text-[10px] bg-orange-200 text-orange-800 rounded px-1 py-0.5 truncate leading-tight">
                               <Sun size={8} className="inline mr-0.5" />
@@ -262,19 +293,23 @@ const FactoryClosureCalendar = ({ onClose }) => {
                 ))}
               </div>
 
-              {/* Legend - Made more compact */}
+              {/* Legend - Updated with holiday */}
               <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
                 <div className="flex items-center space-x-1">
                   <div className="w-3 h-3 bg-green-200 border border-green-300 rounded"></div>
                   <span>Open Day</span>
                 </div>
                 <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-purple-200 border border-purple-300 rounded"></div>
+                  <span>Holiday (Work with Double Pay)</span>
+                </div>
+                <div className="flex items-center space-x-1">
                   <div className="w-3 h-3 bg-orange-200 border border-orange-300 rounded"></div>
-                  <span>Sunday Closure</span>
+                  <span>Sunday (Work with Double Pay)</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <div className="w-3 h-3 bg-red-200 border border-red-300 rounded"></div>
-                  <span>Factory Closure</span>
+                  <span>Factory Closure (No Work)</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <div className="w-3 h-3 bg-blue-200 border border-blue-300 rounded"></div>
@@ -282,13 +317,19 @@ const FactoryClosureCalendar = ({ onClose }) => {
                 </div>
               </div>
 
-              {/* Statistics - Made more compact */}
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+              {/* Statistics - Updated with holiday count */}
+              <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
                 <div className="text-center p-1.5 bg-green-50 rounded">
                   <div className="font-semibold text-green-800">
                     {days.filter(day => day && day.type === 'open').length}
                   </div>
                   <div className="text-green-600">Open Days</div>
+                </div>
+                <div className="text-center p-1.5 bg-purple-50 rounded">
+                  <div className="font-semibold text-purple-800">
+                    {days.filter(day => day && day.type === 'holiday').length}
+                  </div>
+                  <div className="text-purple-600">Holidays</div>
                 </div>
                 <div className="text-center p-1.5 bg-orange-50 rounded">
                   <div className="font-semibold text-orange-800">
@@ -336,25 +377,50 @@ const FactoryClosureCalendar = ({ onClose }) => {
 
                 <div className={`p-2 rounded-lg text-sm ${
                   selectedDay.type === 'open' ? 'bg-green-100 text-green-800' :
+                  selectedDay.type === 'holiday' ? 'bg-purple-100 text-purple-800' :
                   selectedDay.type === 'sunday' ? 'bg-orange-100 text-orange-800' :
                   'bg-red-100 text-red-800'
                 }`}>
                   <div className="font-semibold flex items-center">
                     {selectedDay.type === 'sunday' && <Sun size={14} className="mr-1" />}
+                    {selectedDay.type === 'holiday' && <AlertTriangle size={14} className="mr-1" />}
                     {selectedDay.type === 'factory_closure' && <Factory size={14} className="mr-1" />}
                     Status: {selectedDay.label}
                   </div>
                 </div>
 
-                {selectedDay.type === 'factory_closure' && selectedDay.closures.length > 0 && (
+                {/* Work Allowed Info */}
+                {(selectedDay.type === 'holiday' || selectedDay.type === 'sunday') && (
+                  <div className="bg-yellow-50 border border-yellow-200 p-2 rounded-lg text-sm">
+                    <div className="font-semibold text-yellow-800">⚠️ Work Information:</div>
+                    <p className="text-yellow-700 mt-1">
+                      Factory is open for work with <strong>double pay</strong>. 
+                      This day does not count toward regular working days.
+                    </p>
+                  </div>
+                )}
+
+                {selectedDay.type === 'factory_closure' && (
+                  <div className="bg-red-50 border border-red-200 p-2 rounded-lg text-sm">
+                    <div className="font-semibold text-red-800">🚫 Work Information:</div>
+                    <p className="text-red-700 mt-1">
+                      Factory is <strong>closed</strong>. No work allowed.
+                    </p>
+                  </div>
+                )}
+
+                {(selectedDay.type === 'factory_closure' || selectedDay.type === 'holiday') && selectedDay.closures.length > 0 && (
                   <div className="border-t pt-2">
-                    <h4 className="font-semibold mb-1 text-sm">Closure Reasons:</h4>
+                    <h4 className="font-semibold mb-1 text-sm">Closure Details:</h4>
                     {selectedDay.closures.map((closure, index) => (
-                      <div key={index} className="mb-2 p-2 bg-red-50 rounded text-xs">
+                      <div key={index} className={`mb-2 p-2 rounded text-xs ${
+                        closure.isActualClosure ? 'bg-red-50' : 'bg-purple-50'
+                      }`}>
                         <div><strong>Reason:</strong> {closure.reason}</div>
                         {closure.description && (
                           <div className="mt-1"><strong>Description:</strong> {closure.description}</div>
                         )}
+                        <div className="mt-1"><strong>Type:</strong> {closure.isActualClosure ? 'Factory Closure (No Work)' : 'Holiday (Work with Double Pay)'}</div>
                         <div className="mt-1"><strong>Scope:</strong> {closure.isForAllEmployees ? 'All Employees' : 'Selected Employees'}</div>
                         <div className="mt-1"><strong>Status:</strong> {closure.status}</div>
                       </div>
@@ -366,7 +432,7 @@ const FactoryClosureCalendar = ({ onClose }) => {
                   <div className="bg-orange-50 p-2 rounded-lg text-sm">
                     <p className="text-orange-800">
                       <Sun className="inline mr-1" size={14} />
-                      Regular Sunday closure. Factory is closed on all Sundays.
+                      Regular Sunday. Work allowed with double pay.
                     </p>
                   </div>
                 )}
@@ -374,7 +440,7 @@ const FactoryClosureCalendar = ({ onClose }) => {
                 {selectedDay.type === 'open' && (
                   <div className="bg-green-50 p-2 rounded-lg text-sm">
                     <p className="text-green-800">
-                      Factory is open for regular operations.
+                      Factory is open for regular operations with normal pay rates.
                     </p>
                   </div>
                 )}

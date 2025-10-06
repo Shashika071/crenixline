@@ -1,5 +1,3 @@
-  // components/AttendanceManagement.jsx
-
 import { AlertTriangle, Calendar, CheckCircle, CheckSquare, Clock, Download, Eye, Filter, Search, User, Users, XCircle } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
@@ -22,31 +20,44 @@ const AttendanceManagement = () => {
     const [bulkMode, setBulkMode] = useState(false);
     const [selectedEmployees, setSelectedEmployees] = useState([]);
     const [bulkAttendanceData, setBulkAttendanceData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    status: 'Present',
-    checkIn: '08:00',
-    checkOut: '17:00',
-    breakStart: '12:00', // ADD THIS
-    breakEnd: '13:00',   // ADD THIS
-    notes: ''
-  });
+        date: new Date().toISOString().split('T')[0],
+        status: 'Present',
+        checkIn: '08:00',
+        checkOut: '17:00',
+        breakStart: '12:00',
+        breakEnd: '13:00',
+        notes: ''
+    });
     const [bulkLoading, setBulkLoading] = useState(false);
+
+    // Status options with Casual Leave
+    const statusOptions = [
+        { value: 'Present', label: 'Present', color: 'green' },
+        { value: 'Half Day', label: 'Half Day', color: 'orange' },
+        { value: 'Leave', label: 'Annual Leave', color: 'blue' },
+        { value: 'Medical Leave', label: 'Medical Leave', color: 'purple' },
+        { value: 'Casual Leave', label: 'Casual Leave', color: 'teal' },
+        { value: 'Absent', label: 'Absent', color: 'red' },
+        { value: 'Factory Closure', label: 'Factory Closure', color: 'indigo' }
+    ];
 
     useEffect(() => {
       fetchEmployees();
     }, []);
- const handleBulkStatusChange = (newStatus) => {
-  setBulkAttendanceData(prev => ({
-    ...prev,
-    status: newStatus,
-    // Set default times for Present and Half Day statuses
-    checkIn: (newStatus === 'Present' || newStatus === 'Half Day') ? '08:00' : '',
-    checkOut: (newStatus === 'Present' || newStatus === 'Half Day') ? '17:00' : '',
-    // Only set break times for Present status
-    breakStart: newStatus === 'Present' ? '12:00' : '',
-    breakEnd: newStatus === 'Present' ? '13:00' : '',
-  }));
-};
+
+    const handleBulkStatusChange = (newStatus) => {
+        setBulkAttendanceData(prev => ({
+            ...prev,
+            status: newStatus,
+            // Set default times for Present and Half Day statuses
+            checkIn: (newStatus === 'Present' || newStatus === 'Half Day') ? '08:00' : '',
+            checkOut: (newStatus === 'Present' || newStatus === 'Half Day') ? '17:00' : '',
+            // Only set break times for Present status
+            breakStart: newStatus === 'Present' ? '12:00' : '',
+            breakEnd: newStatus === 'Present' ? '13:00' : '',
+        }));
+    };
+
     const fetchEmployees = async () => {
       try {
         setLoading(true);
@@ -132,6 +143,7 @@ const AttendanceManagement = () => {
           const absent = records.filter(r => r.status === 'Absent').length;
           const leave = records.filter(r => r.status === 'Leave').length;
           const medical = records.filter(r => r.status === 'Medical Leave').length;
+          const casual = records.filter(r => r.status === 'Casual Leave').length;
           const halfDay = records.filter(r => r.status === 'Half Day').length;
           const factoryClosure = records.filter(r => r.status === 'Factory Closure').length;
           
@@ -141,8 +153,9 @@ const AttendanceManagement = () => {
             'Total Records': records.length,
             'Present': present,
             'Absent': absent,
-            'Leave': leave,
+            'Annual Leave': leave,
             'Medical Leave': medical,
+            'Casual Leave': casual,
             'Half Day': halfDay,
             'Factory Closure': factoryClosure,
             'Attendance Rate': `${((present + halfDay * 0.5) / records.length * 100).toFixed(1)}%`
@@ -164,6 +177,7 @@ const AttendanceManagement = () => {
             'Overtime Hours': record.overtimeHours || 0,
             'Half Day': record.isHalfDay ? 'Yes' : 'No',
             'Medical Leave': record.isMedical ? 'Yes' : 'No',
+            'Casual Leave': record.isCasual ? 'Yes' : 'No',
             'Factory Closure': record.isFactoryClosure ? 'Yes' : 'No',
             'Paid Leave': record.isPaidLeave ? 'Yes' : 'No',
             'Notes': record.notes || ''
@@ -230,119 +244,157 @@ const AttendanceManagement = () => {
         setSelectedEmployees(filteredEmployees.map(emp => emp._id));
       }
     };
-  // Complete bulk attendance implementation - FIXED VERSION
- // Complete bulk attendance implementation - FIXED VERSION
-const markBulkAttendance = async () => {
-  if (selectedEmployees.length === 0) {
-    alert('Please select at least one employee');
-    return;
-  }
 
-  try {
-    setBulkLoading(true);
-    
-    // Prepare attendance data for each selected employee - WITH BREAK TIMES
-    const attendancePromises = selectedEmployees.map(async (employeeId) => {
-      const employee = employees.find(emp => emp._id === employeeId);
-      if (!employee) {
-        return { employeeId, success: false, error: 'Employee not found' };
-      }
-
-      try {
-        // FIX: Include break times just like the individual modal does
-        const attendanceData = {
-          employeeId,
-          date: bulkAttendanceData.date,
-          status: bulkAttendanceData.status,
-          notes: bulkAttendanceData.notes,
-          isHalfDay: bulkAttendanceData.status === 'Half Day',
-          isMedical: bulkAttendanceData.status === 'Medical Leave'
-        };
-
-        // Include time fields for both Present and Half Day statuses - FIXED
-        if (bulkAttendanceData.status === 'Present' || bulkAttendanceData.status === 'Half Day') {
-          attendanceData.checkIn = bulkAttendanceData.checkIn ? 
-            `${bulkAttendanceData.date}T${bulkAttendanceData.checkIn}:00` : null;
-          attendanceData.checkOut = bulkAttendanceData.checkOut ? 
-            `${bulkAttendanceData.date}T${bulkAttendanceData.checkOut}:00` : null;
-          
-          // Only include break times for Present status, NOT for Half Day
-          if (bulkAttendanceData.status === 'Present') {
-            attendanceData.breakStart = bulkAttendanceData.breakStart ? 
-              `${bulkAttendanceData.date}T${bulkAttendanceData.breakStart}:00` : null;
-            attendanceData.breakEnd = bulkAttendanceData.breakEnd ? 
-              `${bulkAttendanceData.date}T${bulkAttendanceData.breakEnd}:00` : null;
-          } else {
-            // For Half Day, explicitly set break times to null
-            attendanceData.breakStart = null;
-            attendanceData.breakEnd = null;
-          }
-        } else {
-          // For non-present statuses, explicitly set all time fields to null
-          attendanceData.checkIn = null;
-          attendanceData.checkOut = null;
-          attendanceData.breakStart = null;
-          attendanceData.breakEnd = null;
+    // Complete bulk attendance implementation with Casual Leave - FIXED VERSION
+    const markBulkAttendance = async () => {
+        if (selectedEmployees.length === 0) {
+            alert('Please select at least one employee');
+            return;
         }
 
-        console.log('Bulk attendance data being sent:', attendanceData);
+        try {
+            setBulkLoading(true);
+            
+            // Prepare attendance data for each selected employee
+            const attendancePromises = selectedEmployees.map(async (employeeId) => {
+                const employee = employees.find(emp => emp._id === employeeId);
+                if (!employee) {
+                    return { employeeId, success: false, error: 'Employee not found' };
+                }
 
-        const response = await employeeAPI.markAttendance(attendanceData);
-        return { 
-          employeeId, 
-          success: true, 
-          data: response.data,
-          employeeName: employee.name,
-          totalHours: response.data.data?.totalHours // Capture the calculated hours
-        };
-      } catch (error) {
-        return { 
-          employeeId, 
-          success: false, 
-          error: error.response?.data?.message || error.message,
-          employeeName: employee.name 
-        };
-      }
-    });
+                try {
+                    // Create clean attendance data object
+                    const attendanceData = {
+                        employeeId,
+                        date: bulkAttendanceData.date,
+                        status: bulkAttendanceData.status,
+                        notes: bulkAttendanceData.notes || '',
+                        isHalfDay: bulkAttendanceData.status === 'Half Day',
+                        isMedical: bulkAttendanceData.status === 'Medical Leave',
+                        isCasual: bulkAttendanceData.status === 'Casual Leave'
+                    };
 
-    // Execute all promises
-    const results = await Promise.all(attendancePromises);
-    
-    // Analyze results
-    const successful = results.filter(r => r.success);
-    const failed = results.filter(r => !r.success);
-    
-    // Show detailed results with hour information
-    let resultMessage = `Attendance marking completed!\n\n` +
-      `✅ Successful: ${successful.length} employees\n` +
-      `❌ Failed: ${failed.length} employees\n\n`;
-    
-    // Add hour details for successful records
-    successful.forEach(result => {
-      resultMessage += `• ${result.employeeName}: ${result.totalHours || result.data?.data?.totalHours || 0} hours\n`;
-    });
+                    // FIXED: Properly set leaveType based on status
+                    if (bulkAttendanceData.status === 'Medical Leave') {
+                        attendanceData.leaveType = 'medical';
+                    } else if (bulkAttendanceData.status === 'Casual Leave') {
+                        attendanceData.leaveType = 'casual';
+                    } else if (bulkAttendanceData.status === 'Leave') {
+                        attendanceData.leaveType = 'annual';
+                    } else if (bulkAttendanceData.status === 'Half Day') {
+                        attendanceData.leaveType = 'annual'; // Half day uses annual leave
+                    }
+                    // For other statuses, don't include leaveType (will use schema default)
 
-    if (failed.length > 0) {
-      resultMessage += `\nFailed employees:\n`;
-      failed.forEach(result => {
-        resultMessage += `• ${result.employeeName}: ${result.error}\n`;
-      });
-    }
+                    // FIXED: Calculate leaveDaysDeducted
+                    if (bulkAttendanceData.status === 'Half Day') {
+                        attendanceData.leaveDaysDeducted = 0.5;
+                    } else if (bulkAttendanceData.status === 'Leave' || 
+                              bulkAttendanceData.status === 'Medical Leave' || 
+                              bulkAttendanceData.status === 'Casual Leave') {
+                        attendanceData.leaveDaysDeducted = 1;
+                    } else {
+                        attendanceData.leaveDaysDeducted = 0;
+                    }
 
-    alert(resultMessage);
+                    // FIXED: Add factory closure flag
+                    attendanceData.isFactoryClosure = bulkAttendanceData.status === 'Factory Closure';
 
-    // Reset and refresh
-    setSelectedEmployees([]);
-    setBulkMode(false);
-    await fetchEmployees(); // Refresh data
+                    // Include time fields for both Present and Half Day statuses
+                    if (bulkAttendanceData.status === 'Present' || bulkAttendanceData.status === 'Half Day') {
+                        attendanceData.checkIn = bulkAttendanceData.checkIn ? 
+                            `${bulkAttendanceData.date}T${bulkAttendanceData.checkIn}:00` : null;
+                        attendanceData.checkOut = bulkAttendanceData.checkOut ? 
+                            `${bulkAttendanceData.date}T${bulkAttendanceData.checkOut}:00` : null;
+                        
+                        // Only include break times for Present status, NOT for Half Day
+                        if (bulkAttendanceData.status === 'Present') {
+                            attendanceData.breakStart = bulkAttendanceData.breakStart ? 
+                                `${bulkAttendanceData.date}T${bulkAttendanceData.breakStart}:00` : null;
+                            attendanceData.breakEnd = bulkAttendanceData.breakEnd ? 
+                                `${bulkAttendanceData.date}T${bulkAttendanceData.breakEnd}:00` : null;
+                        } else {
+                            // For Half Day, explicitly set break times to null
+                            attendanceData.breakStart = null;
+                            attendanceData.breakEnd = null;
+                        }
+                    } else {
+                        // For non-present statuses, explicitly set all time fields to null
+                        attendanceData.checkIn = null;
+                        attendanceData.checkOut = null;
+                        attendanceData.breakStart = null;
+                        attendanceData.breakEnd = null;
+                    }
 
-  } catch (error) {
-    console.error('Error in bulk attendance:', error);
-    alert('Error marking bulk attendance: ' + error.message);
-  } finally {
-    setBulkLoading(false);
-  }
-};
+                    console.log('Bulk attendance data being sent:', attendanceData);
+
+                    const response = await employeeAPI.markAttendance(attendanceData);
+                    return { 
+                        employeeId, 
+                        success: true, 
+                        data: response.data,
+                        employeeName: employee.name,
+                        totalHours: response.data.data?.totalHours || 0,
+                        leaveBalance: response.data.leaveBalance
+                    };
+                } catch (error) {
+                    console.error(`Error marking attendance for ${employee.name}:`, error);
+                    return { 
+                        employeeId, 
+                        success: false, 
+                        error: error.response?.data?.message || error.message || 'Unknown error',
+                        employeeName: employee.name 
+                    };
+                }
+            });
+
+            // Execute all promises
+            const results = await Promise.all(attendancePromises);
+            
+            // Analyze results
+            const successful = results.filter(r => r.success);
+            const failed = results.filter(r => !r.success);
+            
+            // Show detailed results with hour information
+            let resultMessage = `Bulk Attendance Completed!\n\n` +
+                `✅ Successful: ${successful.length} employees\n` +
+                `❌ Failed: ${failed.length} employees\n\n`;
+            
+            // Add details for successful records
+            if (successful.length > 0) {
+                resultMessage += `Successful Employees:\n`;
+                successful.forEach(result => {
+                    const hours = result.totalHours || result.data?.data?.totalHours || 0;
+                    resultMessage += `• ${result.employeeName}: ${hours} hours\n`;
+                    
+                    // Show leave balance updates if available
+                    if (result.leaveBalance) {
+                        resultMessage += `  Leave Balance - Annual: ${result.leaveBalance.annual}, Medical: ${result.leaveBalance.medical}, Casual: ${result.leaveBalance.casual}\n`;
+                    }
+                });
+            }
+
+            if (failed.length > 0) {
+                resultMessage += `\nFailed Employees:\n`;
+                failed.forEach(result => {
+                    resultMessage += `• ${result.employeeName}: ${result.error}\n`;
+                });
+            }
+
+            alert(resultMessage);
+
+            // Reset and refresh
+            setSelectedEmployees([]);
+            setBulkMode(false);
+            await fetchEmployees(); // Refresh data
+
+        } catch (error) {
+            console.error('Error in bulk attendance:', error);
+            alert('Error marking bulk attendance: ' + (error.message || 'Unknown error'));
+        } finally {
+            setBulkLoading(false);
+        }
+    };
 
     const getStatusIcon = (status) => {
       switch (status) {
@@ -360,6 +412,19 @@ const markBulkAttendance = async () => {
         case 'Inactive': return 'bg-red-100 text-red-800';
         default: return 'bg-slate-100 text-slate-800';
       }
+    };
+
+    const getAttendanceStatusColor = (status) => {
+        switch (status) {
+            case 'Present': return 'bg-green-100 text-green-800';
+            case 'Half Day': return 'bg-orange-100 text-orange-800';
+            case 'Medical Leave': return 'bg-blue-100 text-blue-800';
+            case 'Casual Leave': return 'bg-teal-100 text-teal-800';
+            case 'Leave': return 'bg-yellow-100 text-yellow-800';
+            case 'Factory Closure': return 'bg-purple-100 text-purple-800';
+            case 'Absent': return 'bg-red-100 text-red-800';
+            default: return 'bg-slate-100 text-slate-800';
+        }
     };
 
     const filteredEmployees = employees.filter(employee => {
@@ -408,69 +473,69 @@ const markBulkAttendance = async () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Status *</label>
-                  <select
-    value={bulkAttendanceData.status}
-    onChange={(e) => handleBulkStatusChange(e.target.value)}
-    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-  >
-    <option value="Present">Present</option>
-    <option value="Absent">Absent</option>
-    <option value="Half Day">Half Day</option>
-    <option value="Leave">Leave</option>
-    <option value="Medical Leave">Medical Leave</option>
-    <option value="Factory Closure">Factory Closure</option>
-  </select>
+                    <select
+                        value={bulkAttendanceData.status}
+                        onChange={(e) => handleBulkStatusChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                        <option value="Present">Present</option>
+                        <option value="Absent">Absent</option>
+                        <option value="Half Day">Half Day</option>
+                        <option value="Leave">Annual Leave</option>
+                        <option value="Medical Leave">Medical Leave</option>
+                        <option value="Casual Leave">Casual Leave</option>
+                        <option value="Factory Closure">Factory Closure</option>
+                    </select>
                   </div>
                 {/* Update this section in the bulk modal JSX */}
-{/* Update this section in the bulk modal JSX */}
-{(bulkAttendanceData.status === 'Present' || bulkAttendanceData.status === 'Half Day') && (
-  <>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Check In</label>
-        <input
-          type="time"
-          value={bulkAttendanceData.checkIn}
-          onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, checkIn: e.target.value})}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Check Out</label>
-        <input
-          type="time"
-          value={bulkAttendanceData.checkOut}
-          onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, checkOut: e.target.value})}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-      </div>
-    </div>
+                {(bulkAttendanceData.status === 'Present' || bulkAttendanceData.status === 'Half Day') && (
+                <>
+                    <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Check In</label>
+                        <input
+                        type="time"
+                        value={bulkAttendanceData.checkIn}
+                        onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, checkIn: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Check Out</label>
+                        <input
+                        type="time"
+                        value={bulkAttendanceData.checkOut}
+                        onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, checkOut: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        />
+                    </div>
+                    </div>
 
-    {/* Only show break times for Present status, not for Half Day */}
-    {bulkAttendanceData.status === 'Present' && (
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Break Start</label>
-          <input
-            type="time"
-            value={bulkAttendanceData.breakStart || '12:00'}
-            onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, breakStart: e.target.value})}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Break End</label>
-          <input
-            type="time"
-            value={bulkAttendanceData.breakEnd || '13:00'}
-            onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, breakEnd: e.target.value})}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-          />
-        </div>
-      </div>
-    )}
-  </>
-)}
+                    {/* Only show break times for Present status, not for Half Day */}
+                    {bulkAttendanceData.status === 'Present' && (
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Break Start</label>
+                        <input
+                            type="time"
+                            value={bulkAttendanceData.breakStart || '12:00'}
+                            onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, breakStart: e.target.value})}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        />
+                        </div>
+                        <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Break End</label>
+                        <input
+                            type="time"
+                            value={bulkAttendanceData.breakEnd || '13:00'}
+                            onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, breakEnd: e.target.value})}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        />
+                        </div>
+                    </div>
+                    )}
+                </>
+                )}
                 </div>
 
                 <div>
@@ -590,87 +655,86 @@ const markBulkAttendance = async () => {
 
         {/* Filters Section */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-      {/* Filters Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
-    
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
-          {/* Start Date */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-            />
-          </div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Filters Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
+            
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+                {/* Start Date */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                    <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                </div>
 
-          {/* End Date */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-            />
-          </div>
+                {/* End Date */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                    <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                </div>
 
-          {/* Search */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search employees..."
-                value={filters.searchTerm}
-                onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg"
-              />
+                {/* Search */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Search</label>
+                    <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                        type="text"
+                        placeholder="Search employees..."
+                        value={filters.searchTerm}
+                        onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg"
+                    />
+                    </div>
+                </div>
+
+                {/* Status */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                    <select
+                    value={filters.status}
+                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                    <option value="all">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="On Leave">On Leave</option>
+                    <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+                </div>
             </div>
-          </div>
 
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-            >
-              <option value="all">All Status</option>
-              <option value="Active">Active</option>
-              <option value="On Leave">On Leave</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-4 lg:mt-0">
+                <button
+                onClick={exportAttendanceWithMultipleTabs}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                <Download size={16} />
+                <span>Export Report</span>
+                </button>
+
+                <button
+                onClick={() => setBulkMode(true)}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                >
+                <Users size={16} />
+                <span>Bulk Attendance</span>
+                </button>
+            </div>
+
+            </div>
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      {/* Action Buttons */}
-  <div className="flex gap-3 mt-4 lg:mt-0">
-    <button
-      onClick={exportAttendanceWithMultipleTabs}
-      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-    >
-      <Download size={16} />
-      <span>Export Report</span>
-    </button>
-
-    <button
-      onClick={() => setBulkMode(true)}
-      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-    >
-      <Users size={16} />
-      <span>Bulk Attendance</span>
-    </button>
-  </div>
-
-    </div>
-  </div>
 
 
         {/* Employees Table */}
@@ -794,7 +858,7 @@ const markBulkAttendance = async () => {
                 ) : (
                   <>
                     {/* Attendance Statistics */}
-                    <div className="grid grid-cols-2 md:grid-cols-7 gap-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-8 gap-4 mb-6">
                       <div className="bg-blue-50 p-4 rounded-lg text-center">
                         <div className="text-2xl font-bold text-blue-600">{employeeAttendance.length}</div>
                         <div className="text-sm text-blue-700">Total Records</div>
@@ -817,11 +881,17 @@ const markBulkAttendance = async () => {
                         </div>
                         <div className="text-sm text-purple-700">Medical</div>
                       </div>
+                      <div className="bg-teal-50 p-4 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-teal-600">
+                          {employeeAttendance.filter(a => a.status === 'Casual Leave').length}
+                        </div>
+                        <div className="text-sm text-teal-700">Casual</div>
+                      </div>
                       <div className="bg-yellow-50 p-4 rounded-lg text-center">
                         <div className="text-2xl font-bold text-yellow-600">
                           {employeeAttendance.filter(a => a.status === 'Leave').length}
                         </div>
-                        <div className="text-sm text-yellow-700">Leave</div>
+                        <div className="text-sm text-yellow-700">Annual Leave</div>
                       </div>
                       <div className="bg-red-50 p-4 rounded-lg text-center">
                         <div className="text-2xl font-bold text-red-600">
@@ -875,16 +945,11 @@ const markBulkAttendance = async () => {
                                   {record.overtimeHours || 0}h
                                 </td>
                                 <td className="px-4 py-3">
-                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                                    record.status === 'Present' ? 'bg-green-100 text-green-800' :
-                                    record.status === 'Half Day' ? 'bg-orange-100 text-orange-800' :
-                                    record.status === 'Medical Leave' ? 'bg-blue-100 text-blue-800' :
-                                    record.status === 'Factory Closure' ? 'bg-purple-100 text-purple-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${getAttendanceStatusColor(record.status)}`}>
                                     {record.status}
                                     {record.isHalfDay && record.status !== 'Half Day' && ' (½)'}
                                     {record.isMedical && ' 💊'}
+                                    {record.isCasual && ' 🕐'}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">

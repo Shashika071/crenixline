@@ -6,12 +6,13 @@ import {
   Home,
   LogOut,
   Package,
+  QrCode,
   Settings,
   ShoppingCart,
   Truck,
   User,
   Users,
-  X
+  X,
 } from 'lucide-react';
 
 import React from 'react';
@@ -19,6 +20,7 @@ import React from 'react';
 const Sidebar = ({ isOpen, setIsOpen, activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
+      { id: 'qr', label: 'Attendance QR', icon: QrCode },
     { id: 'employees', label: 'Employees', icon: Users },
     
     { id: 'inventory', label: 'Inventory', icon: Package },

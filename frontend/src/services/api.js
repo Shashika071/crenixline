@@ -1,15 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://crexline.me/api';
-
-
-//const API_BASE_URL = 'http://localhost:5000/api';
- 
+//const API_BASE_URL = 'https://crexline.me/api';
+const API_BASE_URL = 'http://localhost:5000/api';
+export const FILE_BASE_URL = 'http://localhost:5000';
 const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Remove the default Content-Type header - let axios handle it automatically
 });
 
 // Add token to requests
@@ -19,6 +15,17 @@ api.interceptors.request.use(
     if (token) {
       config.headers.token = token;
     }
+    
+    // IMPORTANT: If data is FormData, don't set Content-Type header
+    // Let the browser set it automatically with the proper boundary
+    if (config.data instanceof FormData) {
+      // Remove any existing Content-Type header for FormData
+      delete config.headers['Content-Type'];
+    } else {
+      // For JSON data, set Content-Type to application/json
+      config.headers['Content-Type'] = 'application/json';
+    }
+    
     return config;
   },
   (error) => {
@@ -43,13 +50,37 @@ export const authAPI = {
   login: (credentials) => api.post('/admin/login', credentials),
 };
 
-// Employee API
+// Employee API - Update create and update methods for FormData support
 export const employeeAPI = {
   // Basic employee operations
   getAll: (params) => api.get('/employees', { params }),
   getById: (id) => api.get(`/employees/${id}`),
-  create: (data) => api.post('/employees', data),
-  update: (id, data) => api.put(`/employees/${id}`, data),
+  
+  // Updated create method with FormData support
+  create: (data) => {
+    // If data is FormData, use multipart/form-data
+    if (data instanceof FormData) {
+      return api.post('/employees', data, {
+        // No need to set headers here - the interceptor handles it
+        timeout: 30000, // Increase timeout for file uploads
+      });
+    } else {
+      // For regular JSON data
+      return api.post('/employees', data);
+    }
+  },
+  
+  // Updated update method with FormData support
+  update: (id, data) => {
+    if (data instanceof FormData) {
+      return api.put(`/employees/${id}`, data, {
+        timeout: 30000, // Increase timeout for file uploads
+      });
+    } else {
+      return api.put(`/employees/${id}`, data);
+    }
+  },
+  
   delete: (id) => api.delete(`/employees/${id}`),
   getStats: () => api.get('/employees/stats'),
   
@@ -60,7 +91,8 @@ export const employeeAPI = {
     params,
     responseType: 'blob' 
   }),
-   markBulkAttendance: (data) => api.post('/employees/attendance/bulk', data),
+  markBulkAttendance: (data) => api.post('/employees/attendance/bulk', data),
+  
   // Salary operations
   calculateSalary: (params) => api.get('/employees/salary/calculate', { params }),
   exportSalaryReport: (params) => api.get('/employees/salary/export', { 
@@ -80,8 +112,8 @@ export const employeeAPI = {
   // Probation employees
   getProbationEmployees: () => api.get('/employees/probation')
 };
+
 // Order API
-// services/api.js - Update orderAPI
 export const orderAPI = {
   getAll: (params) => api.get('/orders', { params }),
   getById: (id) => api.get(`/orders/${id}`),
@@ -98,7 +130,6 @@ export const orderAPI = {
   completeStage: (id, data) => api.patch(`/orders/${id}/complete-stage`, data),  
   getProductionStatus: (id) => api.get(`/orders/${id}/production-status`),
 };
-// services/api.js - Update the Material and Machine API sections
 
 // Material API
 export const materialAPI = {
@@ -106,7 +137,7 @@ export const materialAPI = {
   getById: (id) => api.get(`/materials/${id}`),
   create: (data) => api.post('/materials', data),
   update: (id, data) => api.put(`/materials/${id}`, data),
-  delete: (id) => api.delete(`/materials/${id}`), // Add this line
+  delete: (id) => api.delete(`/materials/${id}`),
   updateStock: (id, data) => api.patch(`/materials/${id}/stock`, data),
   getLowStock: () => api.get('/materials/low-stock'),
 };
@@ -115,21 +146,21 @@ export const materialAPI = {
 export const machineAPI = {
   getAll: (params) => api.get('/machines', { params }),
   getById: (id) => api.get(`/machines/${id}`),
-  create: (data) => api.post('/machines', data), // Make sure this exists
+  create: (data) => api.post('/machines', data),
   update: (id, data) => api.put(`/machines/${id}`, data),
-  delete: (id) => api.delete(`/machines/${id}`), // Add this line
+  delete: (id) => api.delete(`/machines/${id}`),
   updateMaintenance: (id, data) => api.patch(`/machines/${id}/maintenance`, data),
   getMaintenanceSchedule: () => api.get('/machines/maintenance/schedule'),
   getMachinesNeedingMaintenance: () => api.get('/machines/maintenance/needed'),
 };
-// Supplier API
+
 // Supplier API
 export const supplierAPI = {
   getAll: (params) => api.get('/suppliers', { params }),
   getById: (id) => api.get(`/suppliers/${id}`),
   create: (data) => api.post('/suppliers', data),
   update: (id, data) => api.put(`/suppliers/${id}`, data),
-  delete: (id) => api.delete(`/suppliers/${id}`), // Add delete method
+  delete: (id) => api.delete(`/suppliers/${id}`),
 };
 
 // Expense API
@@ -159,12 +190,14 @@ export const reportAPI = {
   getOrderReport: (params) => api.get('/reports/orders', { params }),
 };
 
-// services/api.js - Add to your existing API file
+// Alert API
 export const alertAPI = {
   sendLowStockAlert: () => api.post('/alerts/low-stock'),
   sendMaintenanceAlert: () => api.post('/alerts/maintenance'),
   sendCustomAlert: (data) => api.post('/alerts/custom', data),
 };
+
+// Salary API
 export const salaryAPI = {
   // Allowances
   createAllowance: (data) => api.post('/salary/allowances', data),
@@ -180,13 +213,14 @@ export const salaryAPI = {
   updateAdvanceStatus: (id, data) => api.patch(`/salary/salary-advances/${id}/status`, data),
   getPendingAdvances: () => api.get('/salary/salary-advances/pending'),
   deleteAdvance: (id) => api.delete(`/salary/${id}`),
+  
   // Payslips
   calculatePayslip: (data) => api.post('/salary/payslips/calculate', data),
   finalizePayslip: (id, data) => api.patch(`/salary/payslips/${id}/finalize`, data),
   getPayslips: (params) => api.get('/salary/payslips', { params }),
   getPayslip: (id) => api.get(`/salary/payslips/${id}`),
   markAsPaid: (id) => api.patch(`/salary/payslips/${id}/paid`),
- 
-deletePayslip: (payslipId) => api.delete(`/salary/payslips/${payslipId}`)
+  deletePayslip: (payslipId) => api.delete(`/salary/payslips/${payslipId}`)
 };
+
 export default api;

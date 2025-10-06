@@ -78,7 +78,6 @@ const SalaryFinalization = () => {
     }
   };
 
-  // NEW FUNCTION: Remove draft payslip
   const removePayslip = async (payslipId) => {
     if (!window.confirm('Are you sure you want to remove this draft payslip? This action cannot be undone.')) {
       return;
@@ -191,8 +190,11 @@ const SalaryFinalization = () => {
                 <th className="text-left p-4">Employee</th>
                 <th className="text-left p-4">Basic Salary</th>
                 <th className="text-left p-4">Allowances</th>
-                <th className="text-left p-4">EPF</th>
                 <th className="text-left p-4">OT Pay</th>
+                <th className="text-left p-4">Sunday Pay</th>
+                <th className="text-left p-4">Holiday Pay</th>
+                <th className="text-left p-4">ETF (3%)</th>
+                <th className="text-left p-4">EPF (8%)</th>
                 <th className="text-left p-4">Advances</th>
                 <th className="text-left p-4">Net Salary</th>
                 <th className="text-left p-4">Status</th>
@@ -206,14 +208,26 @@ const SalaryFinalization = () => {
                     <div>
                       <div className="font-medium">{payslip.employeeId?.name}</div>
                       <div className="text-sm text-slate-600">{payslip.employeeId?.role}</div>
+                      <div className="text-xs text-slate-500">{payslip.realId || payslip.employeeId?.employeeId}</div>
                     </div>
                   </td>
                   <td className="p-4">Rs. {payslip.basicSalary?.toLocaleString()}</td>
                   <td className="p-4">Rs. {payslip.totalAllowances?.toLocaleString()}</td>
-                  <td className="p-4">Rs. {payslip.epfDeduction?.toLocaleString()}</td>
                   <td className="p-4">Rs. {payslip.overtimePay?.toLocaleString()}</td>
+                  <td className="p-4 text-blue-600 font-medium">
+                    Rs. {payslip.sundayWorkPay?.toLocaleString()}
+                  </td>
+                  <td className="p-4 text-purple-600 font-medium">
+                    Rs. {payslip.holidayWorkPay?.toLocaleString()}
+                  </td>
+                  <td className="p-4 text-green-600 font-medium">
+                    + Rs. {payslip.etfContribution?.toLocaleString()}
+                  </td>
+                  <td className="p-4 text-red-600">
+                    - Rs. {payslip.epfDeduction?.toLocaleString()}
+                  </td>
                   <td className="p-4">Rs. {payslip.totalAdvances?.toLocaleString()}</td>
-                  <td className="p-4 font-semibold">
+                  <td className="p-4 font-semibold text-green-700">
                     Rs. {payslip.netSalary?.toLocaleString()}
                   </td>
                   <td className="p-4">
@@ -237,7 +251,6 @@ const SalaryFinalization = () => {
                           >
                             <CheckCircle size={16} />
                           </button>
-                          {/* NEW: Remove button for draft payslips */}
                           <button
                             onClick={() => removePayslip(payslip._id)}
                             disabled={deleting === payslip._id}

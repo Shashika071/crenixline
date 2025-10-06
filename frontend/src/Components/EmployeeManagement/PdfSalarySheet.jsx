@@ -1,5 +1,3 @@
-// components/PdfSalarySheet.jsx
-
 import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
 
 import React from 'react';
@@ -136,14 +134,28 @@ const styles = StyleSheet.create({
     borderTop: '0.5pt solid #bdc3c7',
     paddingTop: 10,
   },
-  statusBadge: {
-    backgroundColor: '#3498db',
-    color: 'white',
-    padding: '3px 10px',
-    borderRadius: 3,
+ 
+  calculationTitle: {
     fontSize: 9,
     fontWeight: 'bold',
-    marginTop: 5,
+    marginBottom: 5,
+    color: '#d69e2e',
+  },
+  calculationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  calculationLabel: {
+    fontSize: 8,
+    color: '#744210',
+    flex: 2,
+  },
+  calculationValue: {
+    fontSize: 8,
+    color: '#744210',
+    flex: 1,
+    textAlign: 'right',
   }
 });
 
@@ -167,19 +179,26 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
     totalAllowances = 0,
     overtimeHours = 0,
     overtimePay = 0,
+    sundayWorkHours = 0,
+    sundayWorkPay = 0,
+    holidayWorkHours = 0,
+    holidayWorkPay = 0,
+    etfContribution = 0,
     epfDeduction = 0,
     deductions = [],
     totalDeductions = 0,
     salaryAdvances = [],
     totalAdvances = 0,
+    grossSalary = 0,
     netSalary = 0,
     status = 'draft',
     finalizedDate = '',
-    createdAt = ''
+    calculationInfo = {}
   } = payslip;
 
-  // Calculate overtime rate
-  const overtimeRate = overtimeHours > 0 ? (overtimePay / overtimeHours).toFixed(2) : 0;
+  // Calculate totals
+  const totalEarnings = basicSalary + totalAllowances + overtimePay + sundayWorkPay + holidayWorkPay;
+  const totalSpecialPay = sundayWorkPay + holidayWorkPay;
 
   // Format date
   const formatDate = (dateString) => {
@@ -192,11 +211,11 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.companyName}>CREXLINE GRAMNET</Text>
+          <Text style={styles.companyName}>CREXLINE GARMENT</Text>
           <Text style={styles.title}>SALARY PAYSLIP</Text>
           <Text style={styles.subtitle}>Pay Period: {month}</Text>
           <Text style={styles.subtitle}>Generated on: {currentDate}</Text>
-        
+          <Text style={styles.subtitle}>Employee ID: {payslip.realId || 'N/A'}</Text>
         </View>
 
         {/* Employee Information */}
@@ -216,15 +235,11 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
             <Text style={styles.infoLabel}>Designation:</Text>
             <Text style={styles.infoValue}>{role}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Employee ID:</Text>
-            <Text style={styles.infoValue}>{_id ? _id.slice(-8).toUpperCase() : 'N/A'}</Text>
-          </View>
           {bankDetails && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Bank Account:</Text>
               <Text style={styles.infoValue}>
-                {bankDetails.accountNumber} - {bankDetails.bankName}
+                {bankDetails.accountNumber} - {bankDetails.bankName} ({bankDetails.branch})
               </Text>
             </View>
           )}
@@ -232,8 +247,9 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
 
         {/* Earnings Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>EARNINGS</Text>
+          <Text style={styles.sectionTitle}>EARNINGS & CONTRIBUTIONS</Text>
           
+          {/* Basic Salary */}
           <View style={styles.row}>
             <Text style={styles.label}>Basic Salary:</Text>
             <Text style={[styles.amount, styles.positiveAmount]}>
@@ -253,29 +269,47 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
 
           {/* Overtime */}
           {overtimeHours > 0 && (
-            <>
-              <View style={styles.row}>
-                <Text style={styles.label}>Overtime Hours:</Text>
-                <Text style={styles.value}>{overtimeHours} hours</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.label}>Overtime Rate:</Text>
-                <Text style={styles.value}>Rs. {overtimeRate}/hour</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.label}>Overtime Pay:</Text>
-                <Text style={[styles.amount, styles.positiveAmount]}>
-                  Rs. {overtimePay.toLocaleString()}
-                </Text>
-              </View>
-            </>
+            <View style={styles.row}>
+              <Text style={styles.label}>Overtime ({overtimeHours} hours):</Text>
+              <Text style={[styles.amount, styles.positiveAmount]}>
+                Rs. {overtimePay.toLocaleString()}
+              </Text>
+            </View>
           )}
+
+          {/* Sunday Work */}
+          {sundayWorkHours > 0 && (
+            <View style={styles.row}>
+              <Text style={styles.label}>Sunday Work ({sundayWorkHours} hours):</Text>
+              <Text style={[styles.amount, styles.positiveAmount]}>
+                Rs. {sundayWorkPay.toLocaleString()}
+              </Text>
+            </View>
+          )}
+
+          {/* Holiday Work */}
+          {holidayWorkHours > 0 && (
+            <View style={styles.row}>
+              <Text style={styles.label}>Holiday Work ({holidayWorkHours} hours):</Text>
+              <Text style={[styles.amount, styles.positiveAmount]}>
+                Rs. {holidayWorkPay.toLocaleString()}
+              </Text>
+            </View>
+          )}
+
+          {/* ETF Contribution (Employer) */}
+          <View style={styles.row}>
+            <Text style={styles.label}>ETF Contribution (3%):</Text>
+            <Text style={[styles.amount, styles.positiveAmount]}>
+              + Rs. {etfContribution.toLocaleString()}
+            </Text>
+          </View>
 
           <View style={styles.totalSection}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Earnings:</Text>
+              <Text style={styles.totalLabel}>Total Gross Earnings:</Text>
               <Text style={[styles.totalValue, styles.positiveAmount]}>
-                Rs. {(basicSalary + totalAllowances + overtimePay).toLocaleString()}
+                Rs. {grossSalary?.toLocaleString() || totalEarnings.toLocaleString()}
               </Text>
             </View>
           </View>
@@ -286,14 +320,12 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
           <Text style={styles.sectionTitle}>DEDUCTIONS</Text>
           
           {/* EPF Deduction */}
-          {epfDeduction > 0 && (
-            <View style={styles.row}>
-              <Text style={styles.label}>EPF Contribution:</Text>
-              <Text style={[styles.amount, styles.negativeAmount]}>
-                - Rs. {epfDeduction.toLocaleString()}
-              </Text>
-            </View>
-          )}
+          <View style={styles.row}>
+            <Text style={styles.label}>EPF Contribution (8%):</Text>
+            <Text style={[styles.amount, styles.negativeAmount]}>
+              - Rs. {epfDeduction.toLocaleString()}
+            </Text>
+          </View>
 
           {/* Other Deductions */}
           {deductions.map((deduction, index) => (
@@ -308,7 +340,7 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
           {/* Salary Advances */}
           {salaryAdvances.map((advance, index) => (
             <View key={index} style={styles.row}>
-              <Text style={styles.label}>Salary Advance ({advance.date || 'Advance'}):</Text>
+              <Text style={styles.label}>Salary Advance:</Text>
               <Text style={[styles.amount, styles.negativeAmount]}>
                 - Rs. {advance.amount.toLocaleString()}
               </Text>
@@ -328,23 +360,28 @@ const SalaryPdfDocument = ({ employee = {}, payslip = {}, month = '' }) => {
         {/* Net Salary */}
         <View style={styles.section}>
           <View style={[styles.totalRow, { borderTop: '2pt solid #2980b9', paddingTop: 10 }]}>
-            <Text style={[styles.totalLabel, { fontSize: 14 }]}>NET SALARY:</Text>
+            <Text style={[styles.totalLabel, { fontSize: 14 }]}>NET SALARY PAYABLE:</Text>
             <Text style={[styles.netSalary, styles.positiveAmount]}>
               Rs. {netSalary.toLocaleString()}
             </Text>
           </View>
         </View>
 
+       
         {/* Footer Information */}
         <View style={styles.footer}>
-          <Text>This is an computer-generated document and does not require a signature</Text>
-          <Text>Crexline Gramnet | HR Department | www.crexline.com</Text>
+          <Text>This is a computer-generated document and does not require a physical signature</Text>
+          <Text>Crexline Garment | HR Department | Kamburawala, Baduraliya</Text>
+          <Text>Contact: HR Department | Generated on: {currentDate}</Text>
           {status === 'finalized' && finalizedDate && (
             <Text>Finalized on: {formatDate(finalizedDate)}</Text>
           )}
           {status === 'paid' && (
             <Text>Payment processed on: {formatDate(finalizedDate)}</Text>
           )}
+          <Text style={{ marginTop: 5, fontStyle: 'italic' }}>
+            Note: ETF (3%) is employer contribution, EPF (8%) is employee deduction
+          </Text>
         </View>
       </Page>
     </Document>

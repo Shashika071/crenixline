@@ -1,7 +1,5 @@
-// components/modals/EmployeeModal.jsx
-
 import { Building, CreditCard, FileText, MapPin, Phone, Plus, Shield, Trash2, User, Users, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const EmployeeModal = ({ employee, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
@@ -13,9 +11,12 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
     salary: employee?.salary || '',
     status: employee?.status || 'Active',
     joinDate: employee?.joinDate ? new Date(employee.joinDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    employmentStatus: employee?.employmentStatus || 'Probation',
+    employmentStatus: employee?.employmentStatus || 'Probation', // Keep 'Probation' as default
     
-    // EPF Fields (ADDED)
+    // NEW: Gender field for maternity leave
+    gender: employee?.gender || 'Male',
+    
+    // EPF Fields
     epfNumber: employee?.epfNumber || '',
     hasEPF: employee?.hasEPF !== undefined ? employee.hasEPF : true,
     
@@ -35,6 +36,11 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
       phone: employee?.emergencyContact?.phone || ''
     }
   });
+
+  // State for profile image
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(employee?.profileImage || '');
+  const fileInputRef = useRef(null);
 
   // State for custom roles management
   const [showCustomRoleInput, setShowCustomRoleInput] = useState(false);
@@ -79,7 +85,44 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
       setAvailableRoles(prev => [...prev, customRole]);
     }
     
-    onSubmit(formData);
+    // Create FormData to handle file upload
+    const submitData = new FormData();
+    
+    // Append all form data - FIXED: Proper FormData handling with correct boolean conversion
+    Object.keys(formData).forEach(key => {
+      if (key === 'bankDetails' || key === 'emergencyContact') {
+        // For nested objects, append each field individually with proper naming
+        const nestedObject = formData[key];
+        Object.keys(nestedObject).forEach(nestedKey => {
+          submitData.append(`${key}[${nestedKey}]`, nestedObject[nestedKey]);
+        });
+      } else if (key === 'hasEPF') {
+        // FIX: Convert boolean to proper format for backend
+        submitData.append(key, formData[key].toString());
+      } else if (key === 'salary') {
+        // Ensure salary is sent as number
+        submitData.append(key, parseFloat(formData[key]) || 0);
+      } else if (key === 'gender') {
+        // Ensure gender is sent
+        submitData.append(key, formData[key]);
+      } else {
+        submitData.append(key, formData[key]);
+      }
+    });
+    
+    // FIX: Append profile image if selected
+    if (profileImage) {
+      submitData.append('profileImage', profileImage);
+      console.log('Profile image appended:', profileImage.name);
+    }
+    
+    // Debug: Log FormData contents
+    console.log('Submitting employee data:');
+    for (let [key, value] of submitData.entries()) {
+      console.log(`${key}:`, value, typeof value);
+    }
+    
+    onSubmit(submitData);
   };
 
   const handleBankDetailChange = (field, value) => {
@@ -119,6 +162,39 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
     const value = e.target.value;
     setCustomRole(value);
     setFormData(prev => ({ ...prev, role: value }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size too large. Please select an image under 5MB.');
+        return;
+      }
+      
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please select a valid image file (JPG, PNG, or WebP).');
+        return;
+      }
+      
+      setProfileImage(file);
+      
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setProfileImagePreview(previewUrl);
+      console.log('Image selected:', file.name, file.size, file.type);
+    }
+  };
+
+  const removeImage = () => {
+    setProfileImage(null);
+    setProfileImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const addCustomRole = () => {
@@ -166,10 +242,62 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-8">
+        <form onSubmit={handleSubmit} className="p-6 space-y-8" encType="multipart/form-data">
           {/* Personal Information */}
           <div>
             <SectionHeader icon={<User size={20} className="text-blue-600" />} title="Personal Information" />
+            
+            {/* Profile Image Upload */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Profile Image</label>
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  {profileImagePreview ? (
+                    <div className="relative">
+                      <img 
+                        src={profileImagePreview} 
+                        alt="Profile preview" 
+                        className="w-20 h-20 rounded-full object-cover border-2 border-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center border-2 border-dashed border-slate-300">
+                      <User size={24} className="text-slate-400" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageChange}
+                    accept="image/jpeg, image/jpg, image/png, image/webp"
+                    className="hidden"
+                    id="profileImage"
+                  />
+                  <label
+                    htmlFor="profileImage"
+                    className="inline-block px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 cursor-pointer transition-colors"
+                  >
+                    Choose Image
+                  </label>
+                  <p className="text-sm text-slate-500 mt-1">JPG, PNG or WebP</p>
+                  {profileImage && (
+                    <p className="text-sm text-green-600 mt-1">
+                      Selected: {profileImage.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
@@ -178,7 +306,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -189,7 +317,32 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   required
                   value={formData.nic}
                   onChange={(e) => setFormData({ ...formData, nic: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* NEW: Gender Field */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Gender *</label>
+                <select
+                  required
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Contact Number *</label>
+                <input
+                  type="tel"
+                  required
+                  value={formData.contactNo}
+                  onChange={(e) => setFormData({ ...formData, contactNo: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -200,27 +353,17 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   required
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Contact Number *</label>
-                <input
-                  type="tel"
-                  required
-                  value={formData.contactNo}
-                  onChange={(e) => setFormData({ ...formData, contactNo: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
+
+              {/* FIXED: Employment Status - Keep 'Probation' as default and option */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Employment Status</label>
                 <select
                   value={formData.employmentStatus}
                   onChange={(e) => setFormData({ ...formData, employmentStatus: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="Probation">Probation</option>
                   <option value="Confirmed">Confirmed</option>
@@ -228,24 +371,38 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   <option value="Permanent">Permanent</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Join Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.joinDate}
+                  onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           </div>
 
-          {/* EPF Information (NEW SECTION) */}
+          {/* EPF Information */}
           <div>
             <SectionHeader icon={<Shield size={20} className="text-orange-600" />} title="EPF Information" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="flex items-center">
+                <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={formData.hasEPF}
-                    onChange={(e) => setFormData({ ...formData, hasEPF: e.target.checked })}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-2"
+                    onChange={(e) => {
+                      console.log('EPF checkbox changed:', e.target.checked);
+                      setFormData({ ...formData, hasEPF: e.target.checked });
+                    }}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm font-medium text-slate-700">Enable EPF Deduction</span>
                 </label>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-slate-500 mt-1 ml-6">
                   {formData.hasEPF ? '8% EPF deduction will be applied to basic salary' : 'No EPF deduction will be applied'}
                 </p>
               </div>
@@ -258,15 +415,14 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                     value={formData.epfNumber}
                     onChange={(e) => setFormData({ ...formData, epfNumber: e.target.value })}
                     placeholder="Enter EPF number (optional)"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <p className="text-sm text-slate-500 mt-1">EPF number is optional but recommended for record keeping</p>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Employment Details */}
+ 
           <div>
             <SectionHeader icon={<Building size={20} className="text-green-600" />} title="Employment Details" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -279,7 +435,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                     <select
                       value={formData.role}
                       onChange={handleRoleChange}
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
                     >
                       <option value="">Select a role</option>
@@ -297,14 +453,14 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                         value={customRole}
                         onChange={handleCustomRoleChange}
                         placeholder="Enter custom role name"
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         autoFocus
                       />
                       <button
                         type="button"
                         onClick={addCustomRole}
                         disabled={!customRole.trim()}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center space-x-1"
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center space-x-1 transition-colors"
                       >
                         <Plus size={16} />
                         <span>Add</span>
@@ -312,7 +468,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                       <button
                         type="button"
                         onClick={cancelCustomRole}
-                        className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400"
+                        className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition-colors"
                       >
                         Cancel
                       </button>
@@ -334,7 +490,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                             <button
                               type="button"
                               onClick={() => removeCustomRole(role)}
-                              className="ml-2 text-slate-500 hover:text-red-600"
+                              className="ml-2 text-slate-500 hover:text-red-600 transition-colors"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -355,8 +511,11 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   step="0.01"
                   value={formData.salary}
                   onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                <p className="text-sm text-slate-500 mt-1">
+                  Salary will be calculated based on 26 working days per month
+                </p>
               </div>
               
               <div>
@@ -364,23 +523,12 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                   <option value="On Leave">On Leave</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Join Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.joinDate}
-                  onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
               </div>
             </div>
           </div>
@@ -396,7 +544,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   required
                   value={formData.bankDetails.accountNumber}
                   onChange={(e) => handleBankDetailChange('accountNumber', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -407,7 +555,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   required
                   value={formData.bankDetails.bankName}
                   onChange={(e) => handleBankDetailChange('bankName', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -418,7 +566,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   required
                   value={formData.bankDetails.branch}
                   onChange={(e) => handleBankDetailChange('branch', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -427,7 +575,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                 <select
                   value={formData.bankDetails.accountType}
                   onChange={(e) => handleBankDetailChange('accountType', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="Savings">Savings</option>
                   <option value="Current">Current</option>
@@ -447,7 +595,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   type="text"
                   value={formData.emergencyContact.name}
                   onChange={(e) => handleEmergencyContactChange('name', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -457,7 +605,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   type="text"
                   value={formData.emergencyContact.relationship}
                   onChange={(e) => handleEmergencyContactChange('relationship', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
@@ -467,7 +615,7 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
                   type="tel"
                   value={formData.emergencyContact.phone}
                   onChange={(e) => handleEmergencyContactChange('phone', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -477,13 +625,13 @@ const EmployeeModal = ({ employee, onSubmit, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50"
+              className="px-6 py-2 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg"
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all"
             >
               {employee ? 'Update Employee' : 'Add Employee'}
             </button>

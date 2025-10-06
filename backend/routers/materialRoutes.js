@@ -16,6 +16,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // CRUD operations
+router.get("/low-stock", getLowStockMaterials);
 router.post("/", createMaterial);
 router.get("/", getMaterials);
 router.get("/:id", getMaterialById);
@@ -26,6 +27,6 @@ router.delete("/:id", deleteMaterial);
 router.patch("/:id/stock", updateMaterialStock);
 
 // Special queries
-router.get("/low-stock", getLowStockMaterials);
+
 
 export default router;
