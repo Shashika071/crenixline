@@ -762,3 +762,172 @@ async function getAttendanceData(startDate, endDate) {
 
   return attendanceData;
 }
+
+// QR-based attendance marking function
+export const markAttendanceByQR = async (req, res) => {
+  try {
+    const { employeeId, attendanceType } = req.body;
+    
+    if (!employeeId || !attendanceType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Employee ID and attendance type (checkIn/checkOut) are required" 
+      });
+    }
+    
+    // Find employee by their ID
+    const employee = await Employee.findOne({ employeeId: employeeId });
+    
+    if (!employee) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Employee with ID ${employeeId} not found` 
+      });
+    }
+    
+    // Get current date and time
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Find attendance record for today
+    const existingRecord = employee.attendance.find(
+      record => record.date.toDateString() === today.toDateString()
+    );
+    
+    // Check factory closure for today
+    const factoryClosure = await FactoryClosure.findOne({
+      date: {
+        $gte: new Date(today.setHours(0, 0, 0, 0)),
+        $lt: new Date(today.setHours(23, 59, 59, 999))
+      },
+      status: 'Active'
+    });
+    
+    const isSunday = now.getDay() === 0;
+    let isFactoryClosureDay = false;
+    let isHolidayWork = false;
+    
+    if (factoryClosure) {
+      const isAffected = factoryClosure.isForAllEmployees || 
+        factoryClosure.affectedEmployees.includes(employee._id.toString());
+      
+      if (isAffected) {
+        isFactoryClosureDay = factoryClosure.isActualClosure;
+        isHolidayWork = !factoryClosure.isActualClosure && factoryClosure.allowWorkWithDoublePay;
+      }
+    }
+    
+    if (attendanceType === 'checkIn') {
+      if (existingRecord) {
+        // Employee already has an attendance record for today
+        if (existingRecord.checkIn) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Check-in already recorded for today" 
+          });
+        }
+        
+        // Update existing record with check-in time
+        existingRecord.checkIn = now;
+        
+        // Update status based on factory closure/holiday/Sunday
+        if (isFactoryClosureDay) {
+          existingRecord.status = 'Factory Closure Work';
+          existingRecord.isFactoryClosure = true;
+        } else if (isHolidayWork) {
+          existingRecord.status = 'Holiday Work';
+          existingRecord.isHolidayWork = true;
+          existingRecord.isDoublePay = true;
+        } else if (isSunday) {
+          existingRecord.status = 'Sunday Work';
+          existingRecord.isSundayWork = true;
+          existingRecord.isDoublePay = true;
+        } else {
+          existingRecord.status = 'Present';
+        }
+      } else {
+        // Create new attendance record for today
+        let status = 'Present';
+        
+        if (isFactoryClosureDay) {
+          status = 'Factory Closure Work';
+        } else if (isHolidayWork) {
+          status = 'Holiday Work';
+        } else if (isSunday) {
+          status = 'Sunday Work';
+        }
+        
+        // Create new attendance record
+        const newAttendance = {
+          date: today,
+          checkIn: now,
+          status: status,
+          isHalfDay: false,
+          isMedical: false,
+          isCasual: false,
+          isFactoryClosure: isFactoryClosureDay,
+          isHolidayWork: isHolidayWork,
+          isSundayWork: isSunday,
+          isDoublePay: isHolidayWork || isSunday,
+          totalHours: 0,
+          overtimeHours: 0
+        };
+        
+        employee.attendance.push(newAttendance);
+      }
+    } else if (attendanceType === 'checkOut') {
+      if (!existingRecord || !existingRecord.checkIn) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Cannot check out without prior check-in" 
+        });
+      }
+      
+      // Update check-out time
+      existingRecord.checkOut = now;
+      
+      // Calculate hours worked based on check-in and check-out times
+      const calculatedHours = calculateWorkHours(
+        existingRecord.checkIn.toISOString(), 
+        now.toISOString(), 
+        existingRecord.breakStart?.toISOString(), 
+        existingRecord.breakEnd?.toISOString(), 
+        employee.workingSchedule,
+        today,
+        existingRecord.isHolidayWork,
+        existingRecord.isSundayWork
+      );
+      
+      existingRecord.totalHours = calculatedHours.totalHours || 0;
+      existingRecord.overtimeHours = calculatedHours.overtimeHours || 0;
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid attendance type. Use 'checkIn' or 'checkOut'" 
+      });
+    }
+    
+    // Save updated employee record
+    await employee.save();
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: `Successfully marked ${attendanceType} for ${employee.name}`,
+      employee: {
+        id: employee._id,
+        name: employee.name,
+        employeeId: employee.employeeId
+      },
+      attendanceType,
+      timestamp: now
+    });
+    
+  } catch (error) {
+    console.error("Error marking attendance by QR:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server error while marking attendance",
+      error: error.message
+    });
+  }
+};

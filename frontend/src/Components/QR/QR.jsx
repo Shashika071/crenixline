@@ -2,6 +2,7 @@ import { Camera, CheckCircle, Clock, RefreshCw, Volume2, VolumeX } from 'lucide-
 import React, { useEffect, useRef, useState } from 'react';
 
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
 const QR = () => {
   const [scanning, setScanning] = useState(false);
@@ -13,11 +14,15 @@ const QR = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [canScan, setCanScan] = useState(true);
   const [timeUntilNextScan, setTimeUntilNextScan] = useState(0);
+  const [attendanceMode, setAttendanceMode] = useState('checkIn'); // 'checkIn' or 'checkOut'
+  const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [processingAttendance, setProcessingAttendance] = useState(false);
 
   const scanInterval = useRef(null);
   const audioRef = useRef(null);
 
   const API_BASE = 'http://localhost:5001/api';
+  const BACKEND_API = 'http://localhost:5000/api';
 
   // 🔊 Play sound from /public/test.mp3
   const playBeep = () => {
@@ -72,6 +77,60 @@ const QR = () => {
     }
   };
 
+  // Process attendance from QR code
+  const processAttendance = async (qrData) => {
+    try {
+      setProcessingAttendance(true);
+      
+      // Check if QR data contains employee ID
+      // Expected format: employee ID or any format that includes the employee ID
+      const employeeId = qrData;
+      
+      if (!employeeId) {
+        toast.error('Invalid QR code format. Expected employee ID');
+        return;
+      }
+      
+      // Send request to backend to mark attendance
+      const response = await axios.post(`${BACKEND_API}/employees/attendance/qr`, {
+        employeeId: employeeId,
+        attendanceType: attendanceMode
+      });
+      
+      if (response.data.success) {
+        // Show success message with employee details
+        toast.success(
+          `${attendanceMode === 'checkIn' ? 'Check-in' : 'Check-out'} successful for ${response.data.employee.name}`, 
+          { duration: 5000 }
+        );
+        
+        // Update status with employee info
+        setAttendanceStatus({
+          success: true,
+          message: response.data.message,
+          employee: response.data.employee,
+          timestamp: response.data.timestamp,
+          type: attendanceMode
+        });
+      } else {
+        toast.error(`Failed: ${response.data.message}`);
+        setAttendanceStatus({
+          success: false,
+          message: response.data.message
+        });
+      }
+    } catch (error) {
+      console.error('Error processing attendance:', error);
+      toast.error(error.response?.data?.message || 'Error processing attendance');
+      setAttendanceStatus({
+        success: false,
+        message: error.response?.data?.message || 'Server error'
+      });
+    } finally {
+      setProcessingAttendance(false);
+    }
+  };
+
   // 🔁 Start scanning loop
   const startScanning = () => {
     if (scanInterval.current) {
@@ -87,10 +146,16 @@ const QR = () => {
           setCanScan(response.data.can_scan);
           setTimeUntilNextScan(response.data.time_until_next_scan);
 
-          // ✅ Play sound for successful scan
+          // ✅ Play sound and process attendance for successful scan
           if (response.data.results.length > 0) {
+            const latestResult = response.data.results[0];
             setScanResults((prev) => [...response.data.results, ...prev].slice(0, 10));
             playBeep();
+            
+            // Process attendance with the scanned QR data
+            if (!processingAttendance) {
+              processAttendance(latestResult.data);
+            }
           }
         }
       } catch (err) {
@@ -126,8 +191,10 @@ const QR = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">QR Code Scanner</h1>
- 
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">Employee Attendance Scanner</h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Scan employee ID QR codes to mark attendance. Select check-in or check-out mode before scanning.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -162,7 +229,31 @@ const QR = () => {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Attendance Mode Toggle */}
+                  <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setAttendanceMode('checkIn')}
+                      className={`px-3 py-2 text-sm font-medium ${
+                        attendanceMode === 'checkIn'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      Check In
+                    </button>
+                    <button
+                      onClick={() => setAttendanceMode('checkOut')}
+                      className={`px-3 py-2 text-sm font-medium ${
+                        attendanceMode === 'checkOut'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      Check Out
+                    </button>
+                  </div>
+
                   <button
                     onClick={clearResults}
                     className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
@@ -235,7 +326,46 @@ const QR = () => {
                 >
                   Sound: {soundEnabled ? 'Enabled' : 'Disabled'}
                 </div>
+                
+                <div
+                  className={`px-3 py-1 rounded-full ${
+                    attendanceMode === 'checkIn' 
+                      ? 'bg-blue-100 text-blue-800' 
+                      : 'bg-orange-100 text-orange-800'
+                  }`}
+                >
+                  Mode: {attendanceMode === 'checkIn' ? 'Check In' : 'Check Out'}
+                </div>
               </div>
+              
+              {/* Attendance Status Alert */}
+              {attendanceStatus && (
+                <div className={`mt-4 p-4 rounded-lg border ${
+                  attendanceStatus.success
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  <div className="flex items-start">
+                    {attendanceStatus.success ? (
+                      <CheckCircle className="w-5 h-5 mr-2 mt-0.5" />
+                    ) : (
+                      <div className="w-5 h-5 mr-2 mt-0.5 text-red-500">⚠️</div>
+                    )}
+                    <div>
+                      <p className="font-medium">{attendanceStatus.message}</p>
+                      
+                      {attendanceStatus.employee && (
+                        <div className="mt-2 text-sm">
+                          <p><span className="font-semibold">Employee:</span> {attendanceStatus.employee.name}</p>
+                          <p><span className="font-semibold">ID:</span> {attendanceStatus.employee.employeeId}</p>
+                          <p><span className="font-semibold">Time:</span> {new Date(attendanceStatus.timestamp).toLocaleTimeString()}</p>
+                          <p><span className="font-semibold">Action:</span> {attendanceStatus.type === 'checkIn' ? 'Check In' : 'Check Out'}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Error Message */}
               {error && (
@@ -303,6 +433,14 @@ const QR = () => {
                     {canScan ? 'Ready' : 'Cooling down'}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-600">Attendance Mode:</span>
+                  <span className={`font-medium ${
+                    attendanceMode === 'checkIn' ? 'text-blue-600' : 'text-orange-600'
+                  }`}>
+                    {attendanceMode === 'checkIn' ? 'Check In' : 'Check Out'}
+                  </span>
+                </div>
                 {!canScan && (
                   <div className="flex justify-between">
                     <span className="text-blue-600">Next scan:</span>
@@ -311,6 +449,19 @@ const QR = () => {
                     </span>
                   </div>
                 )}
+              </div>
+            </div>
+            
+            <div className="mt-6 p-4 bg-indigo-50 rounded-lg">
+              <h3 className="font-semibold text-indigo-800 mb-2">Attendance Instructions</h3>
+              <div className="space-y-2 text-sm text-indigo-700">
+                <p>1. Select <strong>Check In</strong> or <strong>Check Out</strong> mode</p>
+                <p>2. Hold employee ID QR code in front of the camera</p>
+                <p>3. System will automatically record the attendance</p>
+                <p>4. Wait for confirmation message</p>
+                <p className="font-semibold mt-2 text-indigo-800">
+                  Current mode: {attendanceMode === 'checkIn' ? 'Check In' : 'Check Out'}
+                </p>
               </div>
             </div>
           </div>

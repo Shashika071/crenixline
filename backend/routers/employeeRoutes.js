@@ -24,6 +24,7 @@ import {
   exportAttendance,
   getAttendance,
   markAttendance,
+  markAttendanceByQR,
   markBulkAttendance
 } from '../controllers/attendanceController.js';
 
@@ -44,6 +45,7 @@ router.delete('/:id', deleteEmployee);
 // Attendance routes
 router.post('/attendance/mark', markAttendance);
 router.post('/attendance/bulk', markBulkAttendance);
+router.post('/attendance/qr', markAttendanceByQR); // Added QR code attendance endpoint
 router.get('/attendance/list', getAttendance);
 router.get('/attendance/export', exportAttendance);
 
