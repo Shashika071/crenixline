@@ -9,6 +9,27 @@ services:
       - ./backend/.env
     ports:
       - "5000:5000"
+    volumes:
+      - uploads_data:/app/uploads  # Use named volume for better persistence
+      - ./backend/uploads:/app/uploads  # Bind mount for development access
+    networks:
+      - crexnet
+
+  p-backend:
+    build: ./p-backend
+    container_name: crex_p_backend
+    restart: always
+    ports:
+      - "5001:5001"
+    devices:
+      - /dev/video0:/dev/video0  # For camera access (host's camera 0)
+      - /dev/video1:/dev/video1  # For camera access (host's camera 1, if available)
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix  # For display (if needed)
+      - python_data:/app/data  # Use named volume for better persistence
+      - ./p-backend/data:/app/data  # Bind mount for development access
+    environment:
+      - DISPLAY=${DISPLAY}  # Forward display to host (if needed)
     networks:
       - crexnet
 
@@ -30,8 +51,10 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/dist:/usr/share/nginx/html:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - uploads_data:/usr/share/nginx/uploads:ro  # Access to the uploads for serving images directly
     depends_on:
       - backend
+      - p-backend
       - frontend
     networks:
       - crexnet
@@ -39,3 +62,7 @@ services:
 networks:
   crexnet:
     driver: bridge
+
+volumes:
+  uploads_data:  # Named volume for persistent storage
+  python_data:   # Named volume for Python backend data
