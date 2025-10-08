@@ -186,6 +186,44 @@ export const paymentAPI = {
   getFinancialSummary: (params) => api.get('/payments/financial-summary', { params }),
 };
 
+// Finance API
+export const financeAPI = {
+  getSummary: (params) => api.get('/finance/summary', { params }),
+  
+  // Expense management
+  getExpenses: (params) => api.get('/finance/expenses', { params }),
+  createExpense: (data) => api.post('/finance/expenses', data),
+  updateExpense: (id, data) => api.put(`/finance/expenses/${id}`, data),
+  deleteExpense: (id) => api.delete(`/finance/expenses/${id}`),
+  getExpenseSummary: (params) => api.get('/finance/expenses/summary', { params }),
+  
+  // Income management
+  createIncome: (data) => paymentAPI.create({ 
+    ...data, 
+    type: 'Inflow',
+    paymentMode: data.paymentMethod || data.paymentMode || 'Cash' // Map paymentMethod to paymentMode
+  }),
+  updateIncome: (id, data) => api.put(`/payments/${id}`, { 
+    ...data, 
+    type: 'Inflow',
+    paymentMode: data.paymentMethod || data.paymentMode || 'Cash' // Map paymentMethod to paymentMode
+  }),
+  deleteIncome: (id) => api.delete(`/payments/${id}`),
+  
+  // Machine rentals
+  getMachineRentals: (params) => api.get('/finance/rentals', { params }),
+  markRentalAsPaid: (machineId, month, data) => api.patch(`/finance/rentals/${machineId}/${month}/paid`, data),
+  markRentalsBulkPaid: (data) => api.post('/finance/rentals/bulk-paid', data),
+  
+  // Statutory contributions
+  getStatutoryContributions: (params) => api.get('/finance/statutory', { params }),
+  
+  // Salary expenses
+  getSalaryExpenses: (params) => api.get('/finance/salaries', { params }),
+  markSalaryAsPaid: (id, data) => api.patch(`/finance/salaries/${id}/paid`, data),
+  markSalariesBulkPaid: (data) => api.post('/finance/salaries/bulk-paid', data),
+};
+
 // Report API
 export const reportAPI = {
   getDashboardStats: () => api.get('/reports/dashboard'),
@@ -223,6 +261,17 @@ export const salaryAPI = {
   getPayslip: (id) => api.get(`/salary/payslips/${id}`),
   markAsPaid: (id) => api.patch(`/salary/payslips/${id}/paid`),
   deletePayslip: (payslipId) => api.delete(`/salary/payslips/${payslipId}`)
+};
+
+// Equipment API
+export const equipmentAPI = {
+  getAll: (params) => api.get('/equipment', { params }),
+  getById: (id) => api.get(`/equipment/${id}`),
+  create: (data) => api.post('/equipment', data),
+  update: (id, data) => api.put(`/equipment/${id}`, data),
+  delete: (id) => api.delete(`/equipment/${id}`),
+  updateQuantity: (id, data) => api.patch(`/equipment/${id}/quantity`, data),
+  getLowStock: () => api.get('/equipment/low-stock')
 };
 
 export default api;

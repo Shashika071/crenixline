@@ -1,4 +1,4 @@
-import { Cpu, Download, Package, RefreshCw, Search } from 'lucide-react';
+import { Box, Cpu, Download, Package, RefreshCw, Search } from 'lucide-react';
 
 import React from 'react';
 
@@ -7,12 +7,14 @@ const InventoryTabs = ({
   setActiveTab,
   materialsCount,
   machinesCount,
+  equipmentCount,
   searchTerm,
   setSearchTerm,
   filterType,
   setFilterType,
   materialTypes,
   machineTypes,
+  equipmentCategories,
   onRefresh,
   onExport,
   children
@@ -47,9 +49,25 @@ const InventoryTabs = ({
         >
           <div className="flex items-center justify-center space-x-2">
             <Cpu size={18} />
-            <span>Machines & Equipment</span>
+            <span>Machines</span>
             <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full">
               {machinesCount}
+            </span>
+          </div>
+        </button>
+        <button
+          onClick={() => setActiveTab('equipment')}
+          className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+            activeTab === 'equipment'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <Box size={18} />
+            <span>Equipment</span>
+            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full">
+              {equipmentCount}
             </span>
           </div>
         </button>
@@ -75,8 +93,12 @@ const InventoryTabs = ({
               onChange={(e) => setFilterType(e.target.value)}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
-              <option value="all">All Types</option>
-              {(activeTab === 'materials' ? materialTypes : machineTypes).map(type => (
+              <option value="all">All {activeTab === 'equipment' ? 'Categories' : 'Types'}</option>
+              {activeTab === 'materials' ? materialTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
+              )) : activeTab === 'equipment' ? equipmentCategories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              )) : machineTypes.map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>

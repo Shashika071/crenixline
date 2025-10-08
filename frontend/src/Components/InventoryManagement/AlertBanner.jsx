@@ -9,7 +9,10 @@ const AlertBanner = ({
   onViewAll, 
   onExport 
 }) => {
-  if (items.length === 0 || activeTab !== (type === 'material' ? 'materials' : 'machines')) {
+  if (items.length === 0 || 
+      (type === 'material' && activeTab !== 'materials') ||
+      (type === 'machine' && activeTab !== 'machines') ||
+      (type === 'equipment' && activeTab !== 'equipment')) {
     return null;
   }
 
@@ -27,6 +30,13 @@ const AlertBanner = ({
       message: `${items.length} machines need maintenance`,
       color: 'orange',
       exportLabel: 'Export Maintenance'
+    },
+    equipment: {
+      icon: AlertTriangle,
+      title: 'Low Equipment Stock',
+      message: `${items.length} equipment items need restocking`,
+      color: 'red',
+      exportLabel: 'Export Low Stock Equipment'
     }
   };
 

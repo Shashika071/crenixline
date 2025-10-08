@@ -77,3 +77,22 @@ export const exportMaintenanceAlertsToExcel = (machines) => {
   );
   exportMachinesToExcel(maintenanceMachines, `maintenance-alert-${new Date().toISOString().split('T')[0]}`);
 };
+
+// Export equipment data to Excel
+export const exportEquipmentToExcel = (equipment) => {
+  const exportData = equipment.map(item => ({
+    'Name': item.name,
+    'Category': item.category || 'N/A',
+    'Quantity': item.quantity,
+    'Unit': item.unit || 'N/A',
+    'Reorder Level': item.reorderLevel,
+    'Location': item.location || 'N/A',
+    'Status': item.quantity <= item.reorderLevel ? 'Low Stock' : 'In Stock',
+    'Purchase Date': item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A',
+    'Cost': item.cost ? `${item.cost}` : 'N/A',
+    'Last Updated': item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString() : 'N/A',
+    'Notes': item.notes || 'N/A'
+  }));
+  
+  exportToExcel(exportData, `equipment-export-${new Date().toISOString().split('T')[0]}`, 'Equipment');
+};

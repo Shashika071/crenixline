@@ -1,7 +1,9 @@
 import AdminRouter from "./routers/adminRoutes.js";
 import AlertRouter from './routers/alertRoutes.js';
 import EmployeeRouter from "./routers/employeeRoutes.js";
+import EquipmentRouter from "./routers/equipmentRoutes.js";
 import ExpenseRouter from "./routers/expenseRoutes.js";
+import FinanceRouter from "./routers/financeRoutes.js";
 import MachineRoutes from "./routers/machineRoutes.js";
 import MaterialRouter from "./routers/materialRoutes.js";
 import OrderRouter from "./routers/orderRoutes.js";
@@ -64,8 +66,10 @@ app.use("/api/expenses", ExpenseRouter);
 app.use("/api/payments", PaymentRouter);
 app.use("/api/reports", ReportRouter);
 app.use('/api/machines', MachineRoutes);
+app.use("/api/equipment", EquipmentRouter);
 app.use("/api/alerts", AlertRouter);
-app.use("/api/salary", SalaryRouter);  
+app.use("/api/salary", SalaryRouter);
+app.use("/api/finance", FinanceRouter);  
 // 404 Handler
 app.use((req, res) => {
   res.status(404).json({

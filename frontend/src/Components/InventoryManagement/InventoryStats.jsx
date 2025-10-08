@@ -1,4 +1,4 @@
-import { AlertTriangle, Cpu, Package, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Box, Cpu, Package, TrendingUp } from 'lucide-react';
 
 import React from 'react';
 
@@ -17,12 +17,13 @@ const StatCard = ({ title, value, subtitle, icon, color }) => (
   </div>
 );
 
-const InventoryStats = ({ materials, machines, lowStockCount, maintenanceCount }) => {
+const InventoryStats = ({ materials, machines, equipment = [], lowStockCount, maintenanceCount }) => {
   const totalMaterialValue = materials.reduce((sum, m) => sum + (m.availableQty * (m.costPerUnit || 0)), 0);
   const totalMachineValue = machines.reduce((sum, m) => sum + (m.purchaseValue || 0), 0);
+  const totalEquipmentValue = equipment.reduce((sum, e) => sum + ((e.cost || 0) * (e.quantity || 0)), 0);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
       <StatCard
         title="Total Materials"
         value={materials.length}
@@ -38,8 +39,15 @@ const InventoryStats = ({ materials, machines, lowStockCount, maintenanceCount }
         color="from-purple-500 to-purple-600"
       />
       <StatCard
+        title="Equipment Items"
+        value={equipment.length}
+        subtitle={`${equipment.reduce((sum, e) => sum + (e.quantity || 0), 0)} units`}
+        icon={<Box className="w-6 h-6" />}
+        color="from-teal-500 to-teal-600"
+      />
+      <StatCard
         title="Inventory Value"
-        value={`Rs. ${(totalMaterialValue + totalMachineValue).toLocaleString()}`}
+        value={`Rs. ${(totalMaterialValue + totalMachineValue + totalEquipmentValue).toLocaleString()}`}
         icon={<TrendingUp className="w-6 h-6" />}
         color="from-green-500 to-green-600"
       />

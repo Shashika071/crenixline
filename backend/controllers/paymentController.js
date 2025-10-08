@@ -34,6 +34,49 @@ export const getPayments = async (req, res) => {
   }
 };
 
+// Update payment by ID
+export const updatePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await Payment.findByIdAndUpdate(
+      id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+    
+    // Populate references for the response
+    await payment.populate([
+      { path: 'orderId' },
+      { path: 'supplierId' },
+      { path: 'employeeId' }
+    ]);
+    
+    res.json({ success: true, data: payment });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// Delete payment by ID
+export const deletePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await Payment.findByIdAndDelete(id);
+    
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+    
+    res.json({ success: true, message: 'Payment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const getFinancialSummary = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;

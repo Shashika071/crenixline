@@ -1,7 +1,9 @@
 import {
   createPayment,
+  deletePayment,
   getFinancialSummary,
-  getPayments
+  getPayments,
+  updatePayment
 } from "../controllers/paymentController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -14,5 +16,7 @@ router.use(authMiddleware);
 router.post("/", createPayment);
 router.get("/", getPayments);
 router.get("/financial-summary", getFinancialSummary);
+router.put("/:id", updatePayment);
+router.delete("/:id", deletePayment);
 
 export default router;
