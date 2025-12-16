@@ -52,6 +52,8 @@ services:
       - ./frontend/dist:/usr/share/nginx/html:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - uploads_data:/usr/share/nginx/uploads:ro  # Access to the uploads for serving images directly
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - backend
       - p-backend
