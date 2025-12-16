@@ -21,9 +21,6 @@ services:
     restart: always
     ports:
       - "5001:5001"
-    devices:
-      - /dev/video0:/dev/video0  # For camera access (host's camera 0)
-      - /dev/video1:/dev/video1  # For camera access (host's camera 1, if available)
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix  # For display (if needed)
       - python_data:/app/data  # Use named volume for better persistence
